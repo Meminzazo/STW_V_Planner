@@ -10,8 +10,11 @@ import com.meminzazo.stwvplanner.domain.repository.VBucksRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -22,6 +25,10 @@ class AddExpenseViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val accountId: Long = checkNotNull(savedStateHandle["accountId"])
+
+    val otherAccounts = repository.getAccounts()
+        .map { accounts -> accounts.filter { it.id != accountId } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _uiEvent = MutableSharedFlow<UiEvent>()
     val uiEvent = _uiEvent.asSharedFlow()

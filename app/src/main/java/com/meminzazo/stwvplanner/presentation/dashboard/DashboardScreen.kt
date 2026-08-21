@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -96,7 +97,8 @@ fun DashboardScreen(
                     account = account,
                     onAddDaily = { amount -> viewModel.onAddDailyClick(account.id, amount) },
                     onAddAlert = { viewModel.onAddAlertClick(account.id) },
-                    onRecordExpense = { onNavigateToExpenses(account.id) }
+                    onRecordExpense = { onNavigateToExpenses(account.id) },
+                    onDeleteAccount = { viewModel.onDeleteAccountClick(account.id) }
                 )
             }
         }
@@ -146,8 +148,35 @@ fun AccountCard(
     account: Account,
     onAddDaily: (Int) -> Unit,
     onAddAlert: () -> Unit,
-    onRecordExpense: () -> Unit
+    onRecordExpense: () -> Unit,
+    onDeleteAccount: () -> Unit
 ) {
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Eliminar Cuenta") },
+            text = { Text("¿Estás seguro de que deseas eliminar esta cuenta? Se perderán todos sus datos.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDeleteAccount()
+                        showDeleteConfirm = false
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Eliminar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
@@ -160,15 +189,25 @@ fun AccountCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = account.name,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                if (account.isMain) {
-                    SuggestionChip(
-                        onClick = { },
-                        label = { Text("Principal") }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = account.name,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    if (account.isMain) {
+                        SuggestionChip(
+                            onClick = { },
+                            label = { Text("Principal") }
+                        )
+                    }
+                }
+                IconButton(onClick = { showDeleteConfirm = true }) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Eliminar",
+                        tint = MaterialTheme.colorScheme.error
                     )
                 }
             }

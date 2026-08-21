@@ -77,6 +77,12 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
+    fun onDeleteAccountClick(accountId: Long) {
+        viewModelScope.launch {
+            repository.deleteAccount(accountId)
+        }
+    }
+
     sealed class UiEvent {
         data class ShowError(val message: String) : UiEvent()
     }
