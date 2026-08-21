@@ -27,7 +27,7 @@ class DashboardViewModel @Inject constructor(
     private val addAccountUseCase: AddAccountUseCase
 ) : ViewModel() {
 
-    val accounts: StateFlow<List<Account>> = repository.getAccounts()
+    val accounts: StateFlow<List<Account>> = repository.getMainAccounts()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _uiEvent = MutableSharedFlow<UiEvent>()
@@ -39,10 +39,10 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    fun onCreateAccountClick(name: String, isMain: Boolean) {
+    fun onCreateAccountClick(name: String, isMain: Boolean = true) {
         viewModelScope.launch {
             if (name.isBlank()) return@launch
-            addAccountUseCase(name, isMain)
+            addAccountUseCase(name = name, isMain = isMain)
         }
     }
 

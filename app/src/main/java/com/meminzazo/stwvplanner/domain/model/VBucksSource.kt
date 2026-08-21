@@ -8,5 +8,6 @@ enum class VBucksSource {
     SHOP,       // Tienda (Gasto)
     GIFT,       // Regalo (Gasto)
     ADJUSTMENT, // Ajuste de Epic / Otros
-    PACK        // Paquete de inicio / Historia
+    PACK,       // Paquete de inicio / Historia
+    EXTERNAL    // Compras directas / Otros externos
 }

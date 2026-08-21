@@ -8,5 +8,9 @@ data class Transaction(
     val source: VBucksSource,
     val description: String,
     val date: Long,
-    val recipientAccountName: String? = null
+    val recipientAccountName: String? = null,
+    val senderAccountId: Long? = null,
+    val receiverAccountId: Long? = null,
+    val itemType: ItemType? = null,
+    val itemName: String? = null
 )

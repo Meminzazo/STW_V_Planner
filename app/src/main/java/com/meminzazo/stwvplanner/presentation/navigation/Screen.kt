@@ -1,11 +1,17 @@
 package com.meminzazo.stwvplanner.presentation.navigation
 
 sealed class Screen(val route: String) {
-    object Dashboard : Screen("dashboard")
+    object AccountSelection : Screen("account_selection")
+    
+    object AccountDetail : Screen("account_detail/{accountId}") {
+        fun createRoute(accountId: Long) = "account_detail/$accountId"
+    }
+    
     object AddExpense : Screen("add_expense/{accountId}") {
         fun createRoute(accountId: Long) = "add_expense/$accountId"
     }
-    object Transactions : Screen("transactions/{accountId}") {
-        fun createRoute(accountId: Long) = "transactions/$accountId"
+    
+    object History : Screen("history/{accountId}") {
+        fun createRoute(accountId: Long) = "history/$accountId"
     }
 }

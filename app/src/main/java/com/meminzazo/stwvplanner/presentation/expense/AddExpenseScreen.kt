@@ -11,6 +11,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 
+import com.meminzazo.stwvplanner.domain.model.ItemType
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddExpenseScreen(
@@ -21,9 +23,11 @@ fun AddExpenseScreen(
     val recipientName by viewModel.recipientName.collectAsState()
     val description by viewModel.description.collectAsState()
     val amount by viewModel.amount.collectAsState()
+    val itemType by viewModel.itemType.collectAsState()
     val otherAccounts by viewModel.otherAccounts.collectAsState()
 
-    var expanded by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var expandedRecipient by remember { mutableStateOf(false) }
+    var expandedItemType by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.uiEvent.collect { event ->
@@ -54,8 +58,8 @@ fun AddExpenseScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             ExposedDropdownMenuBox(
-                expanded = expanded,
-                onExpandedChange = { expanded = !expanded }
+                expanded = expandedRecipient,
+                onExpandedChange = { expandedRecipient = !expandedRecipient }
             ) {
                 OutlinedTextField(
                     value = recipientName,
@@ -64,23 +68,68 @@ fun AddExpenseScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable, true),
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) }
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedRecipient) }
                 )
 
                 if (otherAccounts.isNotEmpty()) {
                     ExposedDropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
+                        expanded = expandedRecipient,
+                        onDismissRequest = { expandedRecipient = false }
                     ) {
                         otherAccounts.forEach { account ->
                             DropdownMenuItem(
                                 text = { Text(account.name) },
                                 onClick = {
-                                    viewModel.onRecipientNameChange(account.name)
-                                    expanded = false
+                                    viewModel.onRecipientSelected(account)
+                                    expandedRecipient = false
                                 }
                             )
                         }
+                    }
+                }
+            }
+
+            ExposedDropdownMenuBox(
+                expanded = expandedItemType,
+                onExpandedChange = { expandedItemType = !expandedItemType }
+            ) {
+                OutlinedTextField(
+                    value = when (itemType) {
+                        ItemType.SKIN -> "Skin"
+                        ItemType.DANCE -> "Baile"
+                        ItemType.SONG -> "Canción"
+                        ItemType.PACK -> "Paquete"
+                        ItemType.OTHER -> "Otro"
+                    },
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Tipo de Objeto") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true),
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedItemType) }
+                )
+
+                ExposedDropdownMenu(
+                    expanded = expandedItemType,
+                    onDismissRequest = { expandedItemType = false }
+                ) {
+                    ItemType.entries.forEach { type ->
+                        DropdownMenuItem(
+                            text = { 
+                                Text(when (type) {
+                                    ItemType.SKIN -> "Skin"
+                                    ItemType.DANCE -> "Baile"
+                                    ItemType.SONG -> "Canción"
+                                    ItemType.PACK -> "Paquete"
+                                    ItemType.OTHER -> "Otro"
+                                })
+                            },
+                            onClick = {
+                                viewModel.onItemTypeChange(type)
+                                expandedItemType = false
+                            }
+                        )
                     }
                 }
             }

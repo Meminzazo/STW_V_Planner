@@ -23,4 +23,13 @@ interface TransactionDao {
 
     @Query("SELECT COUNT(*) FROM transactions WHERE accountId = :accountId AND source = 'DAILY' AND date >= :startOfDay AND date < :endOfDay")
     suspend fun countDailyMissionsInDateRange(accountId: Long, startOfDay: Long, endOfDay: Long): Int
+
+    @Query("SELECT SUM(amount) FROM transactions WHERE accountId = :accountId AND senderAccountId = :otherAccountId AND source = 'GIFT'")
+    fun getVBucksReceivedFrom(accountId: Long, otherAccountId: Long): Flow<Int?>
+
+    @Query("SELECT SUM(amount) FROM transactions WHERE accountId = :accountId AND receiverAccountId = :otherAccountId AND source = 'GIFT'")
+    fun getVBucksSentTo(accountId: Long, otherAccountId: Long): Flow<Int?>
+
+    @Query("SELECT * FROM transactions WHERE accountId = :accountId AND source = 'GIFT' AND senderAccountId = :senderId ORDER BY date DESC")
+    fun getGiftsReceivedFrom(accountId: Long, senderId: Long): Flow<List<TransactionEntity>>
 }

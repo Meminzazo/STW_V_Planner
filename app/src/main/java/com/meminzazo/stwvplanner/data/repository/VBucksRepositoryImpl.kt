@@ -2,6 +2,7 @@ package com.meminzazo.stwvplanner.data.repository
 
 import com.meminzazo.stwvplanner.data.local.dao.AccountDao
 import com.meminzazo.stwvplanner.data.local.dao.TransactionDao
+import com.meminzazo.stwvplanner.data.local.entity.AccountEntity
 import com.meminzazo.stwvplanner.data.mapper.toDomain
 import com.meminzazo.stwvplanner.data.mapper.toEntity
 import com.meminzazo.stwvplanner.domain.model.Account
@@ -22,17 +23,36 @@ class VBucksRepositoryImpl @Inject constructor(
 ) : VBucksRepository {
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    override fun getAccounts(): Flow<List<Account>> {
-        return accountDao.getAllAccounts().flatMapLatest { entities ->
-            if (entities.isEmpty()) return@flatMapLatest flowOf(emptyList<Account>())
-            
-            val accountFlows = entities.map { entity ->
-                transactionDao.getBalanceByAccount(entity.id).map { balance ->
-                    entity.toDomain(balance ?: 0)
-                }
-            }
-            combine(accountFlows) { it.toList() }
+    override fun getMainAccounts(): Flow<List<Account>> {
+        return accountDao.getMainAccounts().flatMapLatest { entities ->
+            mapEntitiesToDomain(entities)
         }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun getAccountsByParent(parentId: Long): Flow<List<Account>> {
+        return accountDao.getAccountsByParent(parentId).flatMapLatest { entities ->
+            mapEntitiesToDomain(entities)
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun getAccounts(): Flow<List<Account>> {
+        // Por defecto devolvemos todas, pero el mapper se encargará de isMain
+        return accountDao.getMainAccounts().flatMapLatest { entities ->
+            mapEntitiesToDomain(entities)
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun mapEntitiesToDomain(entities: List<AccountEntity>): Flow<List<Account>> {
+        if (entities.isEmpty()) return flowOf(emptyList())
+        val accountFlows = entities.map { entity ->
+            transactionDao.getBalanceByAccount(entity.id).map { balance ->
+                entity.toDomain(balance ?: 0)
+            }
+        }
+        return combine(accountFlows) { it.toList() }
     }
 
     override suspend fun getAccountById(id: Long): Account? {
@@ -58,7 +78,26 @@ class VBucksRepositoryImpl @Inject constructor(
     }
 
     override suspend fun insertTransaction(transaction: Transaction): Long {
-        return transactionDao.insertTransaction(transaction.toEntity())
+        val transactionId = transactionDao.insertTransaction(transaction.toEntity())
+        
+        // Lógica de doble inserción para regalos entre cuentas locales
+        if (transaction.source == com.meminzazo.stwvplanner.domain.model.VBucksSource.GIFT) {
+            if (transaction.type == com.meminzazo.stwvplanner.domain.model.TransactionType.SPEND && transaction.receiverAccountId != null) {
+                // Si yo regalo, el otro recibe
+                val receivingTransaction = transaction.copy(
+                    id = 0,
+                    accountId = transaction.receiverAccountId,
+                    type = com.meminzazo.stwvplanner.domain.model.TransactionType.EARN,
+                    senderAccountId = transaction.accountId,
+                    receiverAccountId = null
+                )
+                transactionDao.insertTransaction(receivingTransaction.toEntity())
+            } else if (transaction.type == com.meminzazo.stwvplanner.domain.model.TransactionType.EARN && transaction.senderAccountId != null) {
+                // (Opcional) Si registro que recibí, el otro gastó (aunque normalmente se registra desde el emisor)
+            }
+        }
+        
+        return transactionId
     }
 
     override fun getBalance(accountId: Long): Flow<Int> {
@@ -78,5 +117,19 @@ class VBucksRepositoryImpl @Inject constructor(
         val endOfDay = calendar.timeInMillis
         
         return transactionDao.countDailyMissionsInDateRange(accountId, startOfDay, endOfDay)
+    }
+
+    override fun getVBucksReceivedFrom(accountId: Long, otherAccountId: Long): Flow<Int> {
+        return transactionDao.getVBucksReceivedFrom(accountId, otherAccountId).map { it ?: 0 }
+    }
+
+    override fun getVBucksSentTo(accountId: Long, otherAccountId: Long): Flow<Int> {
+        return transactionDao.getVBucksSentTo(accountId, otherAccountId).map { it ?: 0 }
+    }
+
+    override fun getGiftsReceivedFrom(accountId: Long, senderId: Long): Flow<List<Transaction>> {
+        return transactionDao.getGiftsReceivedFrom(accountId, senderId).map { entities ->
+            entities.map { it.toDomain() }
+        }
     }
 }

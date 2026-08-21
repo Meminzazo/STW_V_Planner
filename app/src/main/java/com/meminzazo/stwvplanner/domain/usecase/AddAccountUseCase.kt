@@ -7,8 +7,8 @@ import javax.inject.Inject
 class AddAccountUseCase @Inject constructor(
     private val repository: VBucksRepository
 ) {
-    suspend operator fun invoke(name: String, isMain: Boolean): Long {
-        val account = Account(name = name, isMain = isMain)
+    suspend operator fun invoke(name: String, isMain: Boolean = false, parentAccountId: Long? = null): Long {
+        val account = Account(name = name, isMain = isMain, parentAccountId = parentAccountId)
         return repository.insertAccount(account)
     }
 }

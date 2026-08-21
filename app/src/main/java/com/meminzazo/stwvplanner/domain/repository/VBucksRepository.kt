@@ -5,7 +5,9 @@ import com.meminzazo.stwvplanner.domain.model.Transaction
 import kotlinx.coroutines.flow.Flow
 
 interface VBucksRepository {
-    fun getAccounts(): Flow<List<Account>>
+    fun getMainAccounts(): Flow<List<Account>>
+    fun getAccountsByParent(parentId: Long): Flow<List<Account>>
+    fun getAccounts(): Flow<List<Account>> // Mantenemos para compatibilidad si es necesario, pero filtraremos
     suspend fun getAccountById(id: Long): Account?
     suspend fun insertAccount(account: Account): Long
     suspend fun deleteAccount(id: Long)
@@ -14,4 +16,8 @@ interface VBucksRepository {
     suspend fun insertTransaction(transaction: Transaction): Long
     fun getBalance(accountId: Long): Flow<Int>
     suspend fun countDailyMissionsInDate(accountId: Long, timestamp: Long): Int
+    
+    fun getVBucksReceivedFrom(accountId: Long, otherAccountId: Long): Flow<Int>
+    fun getVBucksSentTo(accountId: Long, otherAccountId: Long): Flow<Int>
+    fun getGiftsReceivedFrom(accountId: Long, senderId: Long): Flow<List<Transaction>>
 }

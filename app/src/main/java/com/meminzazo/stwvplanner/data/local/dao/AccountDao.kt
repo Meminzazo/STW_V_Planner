@@ -9,8 +9,11 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AccountDao {
-    @Query("SELECT * FROM accounts")
-    fun getAllAccounts(): Flow<List<AccountEntity>>
+    @Query("SELECT * FROM accounts WHERE parentAccountId IS NULL")
+    fun getMainAccounts(): Flow<List<AccountEntity>>
+
+    @Query("SELECT * FROM accounts WHERE parentAccountId = :parentId")
+    fun getAccountsByParent(parentId: Long): Flow<List<AccountEntity>>
 
     @Query("SELECT * FROM accounts WHERE id = :id")
     suspend fun getAccountById(id: Long): AccountEntity?

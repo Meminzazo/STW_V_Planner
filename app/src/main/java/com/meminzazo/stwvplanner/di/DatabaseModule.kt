@@ -23,7 +23,7 @@ object DatabaseModule {
             context,
             VBucksDatabase::class.java,
             "vbucks_db"
-        ).build()
+        ).fallbackToDestructiveMigration().build()
     }
 
     @Provides

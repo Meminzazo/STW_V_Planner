@@ -3,6 +3,7 @@ package com.meminzazo.stwvplanner.presentation.expense
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.meminzazo.stwvplanner.domain.model.ItemType
 import com.meminzazo.stwvplanner.domain.model.Transaction
 import com.meminzazo.stwvplanner.domain.model.TransactionType
 import com.meminzazo.stwvplanner.domain.model.VBucksSource
@@ -26,8 +27,7 @@ class AddExpenseViewModel @Inject constructor(
 
     private val accountId: Long = checkNotNull(savedStateHandle["accountId"])
 
-    val otherAccounts = repository.getAccounts()
-        .map { accounts -> accounts.filter { it.id != accountId } }
+    val otherAccounts = repository.getAccountsByParent(accountId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _uiEvent = MutableSharedFlow<UiEvent>()
@@ -42,9 +42,28 @@ class AddExpenseViewModel @Inject constructor(
     private val _amount = MutableStateFlow("")
     val amount = _amount.asStateFlow()
 
-    fun onRecipientNameChange(value: String) { _recipientName.value = value }
+    private val _itemType = MutableStateFlow(ItemType.OTHER)
+    val itemType = _itemType.asStateFlow()
+
+    private var selectedReceiverId: Long? = null
+
+    fun onRecipientNameChange(value: String) { 
+        _recipientName.value = value 
+        selectedReceiverId = null // Si escribe a mano, reseteamos el ID
+    }
+
+    fun onRecipientSelected(account: com.meminzazo.stwvplanner.domain.model.Account) {
+        _recipientName.value = account.name
+        selectedReceiverId = account.id
+    }
+
+    fun onItemTypeChange(value: ItemType) { _itemType.value = value }
     fun onDescriptionChange(value: String) { _description.value = value }
-    fun onAmountChange(value: String) { _amount.value = value }
+    fun onAmountChange(value: String) {
+        if (value.all { it.isDigit() }) {
+            _amount.value = value
+        }
+    }
 
     fun onSaveClick() {
         viewModelScope.launch {
@@ -61,7 +80,10 @@ class AddExpenseViewModel @Inject constructor(
                 source = VBucksSource.GIFT,
                 description = _description.value,
                 date = System.currentTimeMillis(),
-                recipientAccountName = _recipientName.value
+                recipientAccountName = _recipientName.value,
+                receiverAccountId = selectedReceiverId,
+                itemType = _itemType.value,
+                itemName = _description.value
             )
             repository.insertTransaction(transaction)
             _uiEvent.emit(UiEvent.SaveSuccess)

@@ -8,14 +8,15 @@ import com.meminzazo.stwvplanner.domain.model.Transaction
 fun AccountEntity.toDomain(balance: Int = 0): Account = Account(
     id = id,
     name = name,
-    isMain = isMain,
-    balance = balance
+    isMain = parentAccountId == null,
+    balance = balance,
+    parentAccountId = parentAccountId
 )
 
 fun Account.toEntity(): AccountEntity = AccountEntity(
     id = id,
     name = name,
-    isMain = isMain
+    parentAccountId = parentAccountId
 )
 
 fun TransactionEntity.toDomain(): Transaction = Transaction(
@@ -26,7 +27,11 @@ fun TransactionEntity.toDomain(): Transaction = Transaction(
     source = source,
     description = description,
     date = date,
-    recipientAccountName = recipientAccountName
+    recipientAccountName = recipientAccountName,
+    senderAccountId = senderAccountId,
+    receiverAccountId = receiverAccountId,
+    itemType = itemType,
+    itemName = itemName
 )
 
 fun Transaction.toEntity(): TransactionEntity = TransactionEntity(
@@ -37,5 +42,9 @@ fun Transaction.toEntity(): TransactionEntity = TransactionEntity(
     source = source,
     description = description,
     date = date,
-    recipientAccountName = recipientAccountName
+    recipientAccountName = recipientAccountName,
+    senderAccountId = senderAccountId,
+    receiverAccountId = receiverAccountId,
+    itemType = itemType,
+    itemName = itemName
 )
