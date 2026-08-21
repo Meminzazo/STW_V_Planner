@@ -6,6 +6,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -13,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -26,102 +30,150 @@ import com.meminzazo.stwvplanner.domain.model.Account
 import com.meminzazo.stwvplanner.domain.model.VBucksSource
 import com.meminzazo.stwvplanner.domain.model.TransactionType
 
+private val EARNINGS_COLORS = listOf(
+    Color(0xFF4CAF50), // DAILY
+    Color(0xFF2196F3), // ALERT
+    Color(0xFFFFC107), // EXTERNAL / PACK
+    Color(0xFF9C27B0), // SSD
+    Color(0xFFE91E63)  // OTHERS
+)
+
+private val EXPENSES_COLORS = listOf(
+    Color(0xFFE91E63),
+    Color(0xFFFF5722),
+    Color(0xFF795548),
+    Color(0xFF607D8B),
+    Color(0xFF3F51B5),
+    Color(0xFF009688)
+)
+
+/**
+ * Card genérica con 2 páginas deslizables: "Mensual" y "Total".
+ * El título cambia según la página visible; puntos indicadores abajo.
+ */
 @Composable
-fun EarningsPieChart(data: Map<VBucksSource, Int>) {
-    val total = data.values.sum().toFloat()
-    val colors = listOf(
-        Color(0xFF4CAF50), // DAILY
-        Color(0xFF2196F3), // ALERT
-        Color(0xFFFFC107), // EXTERNAL / PACK
-        Color(0xFF9C27B0), // SSD
-        Color(0xFFE91E63)  // OTHERS
-    )
+fun DistributionPagerCard(
+    baseTitle: String,
+    monthlyContent: @Composable () -> Unit,
+    totalContent: @Composable () -> Unit
+) {
+    val pagerState = rememberPagerState(pageCount = { 2 })
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("Distribución de Ingresos", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Canvas(modifier = Modifier.size(100.dp)) {
-                    var startAngle = 0f
-                    data.entries.forEachIndexed { index, entry ->
-                        val sweepAngle = (entry.value / total) * 360f
-                        drawArc(
-                            color = colors.getOrElse(index) { Color.Gray },
-                            startAngle = startAngle,
-                            sweepAngle = sweepAngle,
-                            useCenter = true
-                        )
-                        startAngle += sweepAngle
-                    }
-                }
-                Spacer(modifier = Modifier.width(24.dp))
-                Column {
-                    data.entries.forEachIndexed { index, entry ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(modifier = Modifier.size(12.dp).background(colors.getOrElse(index) { Color.Gray }))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("${entry.key.name}: ${entry.value}", fontSize = 12.sp)
-                        }
-                    }
+            Text(
+                text = baseTitle + if (pagerState.currentPage == 0) " · Mensual" else " · Total",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalPager(state = pagerState, modifier = Modifier.fillMaxWidth()) { page ->
+                if (page == 0) monthlyContent() else totalContent()
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                repeat(2) { i ->
+                    val selected = pagerState.currentPage == i
+                    Box(
+                        modifier = Modifier
+                            .padding(3.dp)
+                            .size(if (selected) 8.dp else 6.dp)
+                            .clip(CircleShape)
+                            .background(if (selected) MaterialTheme.colorScheme.primary else Color.LightGray)
+                    )
                 }
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ExpensesPieChart(data: Map<String, Int>) {
+private fun EarningsPieContent(data: Map<VBucksSource, Int>) {
     val total = data.values.sum().toFloat()
-    if (total == 0f) return
-
-    val colors = listOf(
-        Color(0xFFE91E63), // Pink
-        Color(0xFFFF5722), // Deep Orange
-        Color(0xFF795548), // Brown
-        Color(0xFF607D8B), // Blue Grey
-        Color(0xFF3F51B5), // Indigo
-        Color(0xFF009688)  // Teal
-    )
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text("Distribución de Egresos", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Canvas(modifier = Modifier.size(100.dp)) {
-                    var startAngle = 0f
-                    data.entries.forEachIndexed { index, entry ->
-                        val sweepAngle = (entry.value.toFloat() / total) * 360f
-                        drawArc(
-                            color = colors.getOrElse(index) { Color.Gray },
-                            startAngle = startAngle,
-                            sweepAngle = sweepAngle,
-                            useCenter = true
-                        )
-                        startAngle += sweepAngle
-                    }
-                }
-                Spacer(modifier = Modifier.width(24.dp))
-                Column {
-                    data.entries.forEachIndexed { index, entry ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(modifier = Modifier.size(12.dp).background(colors.getOrElse(index) { Color.Gray }))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("${entry.key}: ${entry.value}", fontSize = 12.sp)
-                        }
-                    }
+    if (data.isEmpty() || total == 0f) {
+        Text("Sin ingresos en este periodo.", fontSize = 12.sp, color = Color.Gray)
+        return
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Canvas(modifier = Modifier.size(100.dp)) {
+            var startAngle = 0f
+            data.entries.forEachIndexed { index, entry ->
+                val sweepAngle = (entry.value / total) * 360f
+                drawArc(
+                    color = EARNINGS_COLORS.getOrElse(index) { Color.Gray },
+                    startAngle = startAngle,
+                    sweepAngle = sweepAngle,
+                    useCenter = true
+                )
+                startAngle += sweepAngle
+            }
+        }
+        Spacer(modifier = Modifier.width(24.dp))
+        Column {
+            data.entries.forEachIndexed { index, entry ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(12.dp).background(EARNINGS_COLORS.getOrElse(index) { Color.Gray }))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("${entry.key.name}: ${entry.value}", fontSize = 12.sp)
                 }
             }
         }
     }
+}
+
+@Composable
+private fun ExpensesPieContent(data: Map<String, Int>) {
+    val total = data.values.sum().toFloat()
+    if (data.isEmpty() || total == 0f) {
+        Text("Sin egresos en este periodo.", fontSize = 12.sp, color = Color.Gray)
+        return
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Canvas(modifier = Modifier.size(100.dp)) {
+            var startAngle = 0f
+            data.entries.forEachIndexed { index, entry ->
+                val sweepAngle = (entry.value.toFloat() / total) * 360f
+                drawArc(
+                    color = EXPENSES_COLORS.getOrElse(index) { Color.Gray },
+                    startAngle = startAngle,
+                    sweepAngle = sweepAngle,
+                    useCenter = true
+                )
+                startAngle += sweepAngle
+            }
+        }
+        Spacer(modifier = Modifier.width(24.dp))
+        Column {
+            data.entries.forEachIndexed { index, entry ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(12.dp).background(EXPENSES_COLORS.getOrElse(index) { Color.Gray }))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("${entry.key}: ${entry.value}", fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun EarningsDistributionCard(monthly: Map<VBucksSource, Int>, total: Map<VBucksSource, Int>) {
+    DistributionPagerCard(
+        baseTitle = "Distribución de Ingresos",
+        monthlyContent = { EarningsPieContent(monthly) },
+        totalContent = { EarningsPieContent(total) }
+    )
+}
+
+@Composable
+fun ExpensesDistributionCard(monthly: Map<String, Int>, total: Map<String, Int>) {
+    DistributionPagerCard(
+        baseTitle = "Distribución de Egresos",
+        monthlyContent = { ExpensesPieContent(monthly) },
+        totalContent = { ExpensesPieContent(total) }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -136,9 +188,11 @@ fun AccountDetailScreen(
     val account by viewModel.account.collectAsState()
     val balance by viewModel.balance.collectAsState()
     val isDailyRegistered by viewModel.isDailyRegistered.collectAsState()
-    val dependentAccounts by viewModel.dependentAccounts.collectAsState()
+    val dependentRelations by viewModel.dependentRelations.collectAsState()
     val earningsDesglosadas by viewModel.earningsDesglosadas.collectAsState()
+    val earningsDesglosadasMensual by viewModel.earningsDesglosadasMensual.collectAsState()
     val expenseDistribution by viewModel.expenseDistribution.collectAsState()
+    val expenseDistributionMensual by viewModel.expenseDistributionMensual.collectAsState()
 
     var showExternalDialog by remember { mutableStateOf(false) }
     var showAddDependentDialog by remember { mutableStateOf(false) }
@@ -194,22 +248,21 @@ fun AccountDetailScreen(
                 BalanceCard(balance)
             }
 
-            if (earningsDesglosadas.isNotEmpty()) {
+            if (earningsDesglosadas.isNotEmpty() || earningsDesglosadasMensual.isNotEmpty()) {
                 item {
-                    EarningsPieChart(earningsDesglosadas)
+                    EarningsDistributionCard(earningsDesglosadasMensual, earningsDesglosadas)
                 }
             }
 
-            if (expenseDistribution.isNotEmpty()) {
+            if (expenseDistribution.isNotEmpty() || expenseDistributionMensual.isNotEmpty()) {
                 item {
-                    ExpensesPieChart(expenseDistribution)
+                    ExpensesDistributionCard(expenseDistributionMensual, expenseDistribution)
                 }
             }
 
             item {
                 Text("Acciones Rápidas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 if (account?.parentAccountId == null) {
-                    // Cuentas Principales: Acciones de Ganancia
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -246,7 +299,6 @@ fun AccountDetailScreen(
                         }
                     }
                 } else {
-                    // Cuentas Dependientes: Solo mostrar regalos o gastos específicos
                     OutlinedButton(
                         onClick = { onNavigateToAddExpense(account?.id ?: 0) },
                         modifier = Modifier.fillMaxWidth()
@@ -280,10 +332,10 @@ fun AccountDetailScreen(
                     }
                 }
 
-                items(dependentAccounts) { other ->
+                items(dependentRelations) { relation ->
                     RelationItem(
-                        other = other,
-                        onClick = { onNavigateToHistory(other.id) }
+                        relation = relation,
+                        onClick = { onNavigateToHistory(relation.account.id) }
                     )
                 }
             }
@@ -304,8 +356,11 @@ fun BalanceCard(balance: Int) {
     }
 }
 
+private fun formatSigned(amount: Int): String = if (amount >= 0) "+$amount" else "$amount"
+private fun colorFor(amount: Int): Color = if (amount >= 0) Color(0xFF4CAF50) else Color.Red
+
 @Composable
-fun RelationItem(other: Account, onClick: () -> Unit) {
+fun RelationItem(relation: DependentRelation, onClick: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable { onClick() },
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
@@ -316,12 +371,22 @@ fun RelationItem(other: Account, onClick: () -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(other.name, fontWeight = FontWeight.Medium)
-            Text(
-                text = if (other.balance >= 0) "+${other.balance}" else "${other.balance}",
-                color = if (other.balance >= 0) Color(0xFF4CAF50) else Color.Red,
-                fontWeight = FontWeight.Bold
-            )
+            Column {
+                Text(relation.account.name, fontWeight = FontWeight.Medium)
+                Text(
+                    text = "Este mes: ${formatSigned(relation.monthlyBalance)}",
+                    fontSize = 11.sp,
+                    color = colorFor(relation.monthlyBalance)
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text("Total", fontSize = 10.sp, color = Color.Gray)
+                Text(
+                    text = formatSigned(relation.totalBalance),
+                    color = colorFor(relation.totalBalance),
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }
@@ -366,9 +431,9 @@ fun AddExternalDialog(onDismiss: () -> Unit, onConfirm: (Int, String) -> Unit) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = amount,
-                    onValueChange = { 
+                    onValueChange = {
                         if (it.all { char -> char.isDigit() }) {
-                            amount = it 
+                            amount = it
                         }
                     },
                     label = { Text("Cantidad") },

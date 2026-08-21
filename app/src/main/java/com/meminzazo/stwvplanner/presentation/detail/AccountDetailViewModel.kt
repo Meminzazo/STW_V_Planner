@@ -8,7 +8,14 @@ import com.meminzazo.stwvplanner.domain.repository.VBucksRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.util.Calendar
 import javax.inject.Inject
+
+data class DependentRelation(
+    val account: Account,
+    val totalBalance: Int,
+    val monthlyBalance: Int
+)
 
 @HiltViewModel
 class AccountDetailViewModel @Inject constructor(
@@ -91,18 +98,33 @@ class AccountDetailViewModel @Inject constructor(
         }
     }
 
-    // Lógica para obtener balances por relación (Solo dependientes de esta cuenta)
-    val dependentAccounts = repository.getAccountsByParent(accountId)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    private val startOfMonth: Long
+        get() = Calendar.getInstance().apply {
+            set(Calendar.DAY_OF_MONTH, 1)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
 
-    fun onCreateDependentAccount(name: String) {
-        viewModelScope.launch {
-            if (name.isBlank()) return@launch
-            addAccountUseCase(name = name, parentAccountId = accountId)
-        }
-    }
+    private val endOfMonth: Long
+        get() = Calendar.getInstance().apply {
+            set(Calendar.DAY_OF_MONTH, getActualMaximum(Calendar.DAY_OF_MONTH))
+            set(Calendar.HOUR_OF_DAY, 23)
+            set(Calendar.MINUTE, 59)
+            set(Calendar.SECOND, 59)
+            set(Calendar.MILLISECOND, 999)
+        }.timeInMillis
 
     val earningsDesglosadas = repository.getTransactions(accountId)
+        .map { transactions ->
+            transactions.filter { it.type == TransactionType.EARN }
+                .groupBy { it.source }
+                .mapValues { it.value.sumOf { t -> t.amount } }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    val earningsDesglosadasMensual = repository.getTransactionsInRange(accountId, startOfMonth, endOfMonth)
         .map { transactions ->
             transactions.filter { it.type == TransactionType.EARN }
                 .groupBy { it.source }
@@ -119,6 +141,45 @@ class AccountDetailViewModel @Inject constructor(
                 .mapValues { it.value.sumOf { t -> t.amount } }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    val expenseDistributionMensual = repository.getTransactionsInRange(accountId, startOfMonth, endOfMonth)
+        .map { transactions ->
+            transactions.filter { it.type == TransactionType.SPEND }
+                .groupBy { 
+                    it.recipientAccountName ?: it.source.name
+                }
+                .mapValues { it.value.sumOf { t -> t.amount } }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    // Lógica para obtener balances por relación (Solo dependientes de esta cuenta)
+    val dependentAccounts = repository.getAccountsByParent(accountId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val dependentRelations = dependentAccounts.flatMapLatest { accounts ->
+        if (accounts.isEmpty()) return@flatMapLatest flowOf(emptyList<DependentRelation>())
+        
+        val flows = accounts.map { account ->
+            combine(
+                repository.getBalance(account.id),
+                combine(
+                    repository.getVBucksReceivedFromInRange(account.id, accountId, startOfMonth, endOfMonth),
+                    repository.getVBucksSentToInRange(account.id, accountId, startOfMonth, endOfMonth)
+                ) { received, sent -> received - sent }
+            ) { total, monthly ->
+                DependentRelation(account, total, monthly)
+            }
+        }
+        combine(flows) { it.toList() }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun onCreateDependentAccount(name: String) {
+        viewModelScope.launch {
+            if (name.isBlank()) return@launch
+            addAccountUseCase(name = name, parentAccountId = accountId)
+        }
+    }
 
     fun getRelationBalance(otherId: Long): Flow<Int> {
         return combine(

@@ -30,6 +30,15 @@ interface TransactionDao {
     @Query("SELECT SUM(amount) FROM transactions WHERE accountId = :accountId AND receiverAccountId = :otherAccountId AND source = 'GIFT'")
     fun getVBucksSentTo(accountId: Long, otherAccountId: Long): Flow<Int?>
 
+    @Query("SELECT SUM(amount) FROM transactions WHERE accountId = :accountId AND senderAccountId = :otherAccountId AND source = 'GIFT' AND date >= :start AND date < :end")
+    fun getVBucksReceivedFromInRange(accountId: Long, otherAccountId: Long, start: Long, end: Long): Flow<Int?>
+
+    @Query("SELECT SUM(amount) FROM transactions WHERE accountId = :accountId AND receiverAccountId = :otherAccountId AND source = 'GIFT' AND date >= :start AND date < :end")
+    fun getVBucksSentToInRange(accountId: Long, otherAccountId: Long, start: Long, end: Long): Flow<Int?>
+
+    @Query("SELECT * FROM transactions WHERE accountId = :accountId AND date >= :start AND date < :end")
+    fun getTransactionsInRange(accountId: Long, start: Long, end: Long): Flow<List<TransactionEntity>>
+
     @Query("SELECT * FROM transactions WHERE accountId = :accountId AND source = 'GIFT' AND senderAccountId = :senderId ORDER BY date DESC")
     fun getGiftsReceivedFrom(accountId: Long, senderId: Long): Flow<List<TransactionEntity>>
 }

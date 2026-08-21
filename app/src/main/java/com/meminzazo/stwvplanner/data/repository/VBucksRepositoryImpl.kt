@@ -79,7 +79,7 @@ class VBucksRepositoryImpl @Inject constructor(
 
     override suspend fun insertTransaction(transaction: Transaction): Long {
         val transactionId = transactionDao.insertTransaction(transaction.toEntity())
-        
+
         // Lógica de doble inserción para regalos entre cuentas locales
         if (transaction.source == com.meminzazo.stwvplanner.domain.model.VBucksSource.GIFT) {
             if (transaction.type == com.meminzazo.stwvplanner.domain.model.TransactionType.SPEND && transaction.receiverAccountId != null) {
@@ -96,7 +96,7 @@ class VBucksRepositoryImpl @Inject constructor(
                 // (Opcional) Si registro que recibí, el otro gastó (aunque normalmente se registra desde el emisor)
             }
         }
-        
+
         return transactionId
     }
 
@@ -115,7 +115,7 @@ class VBucksRepositoryImpl @Inject constructor(
         val startOfDay = calendar.timeInMillis
         calendar.add(Calendar.DAY_OF_YEAR, 1)
         val endOfDay = calendar.timeInMillis
-        
+
         return transactionDao.countDailyMissionsInDateRange(accountId, startOfDay, endOfDay)
     }
 
@@ -125,6 +125,18 @@ class VBucksRepositoryImpl @Inject constructor(
 
     override fun getVBucksSentTo(accountId: Long, otherAccountId: Long): Flow<Int> {
         return transactionDao.getVBucksSentTo(accountId, otherAccountId).map { it ?: 0 }
+    }
+
+    override fun getVBucksReceivedFromInRange(accountId: Long, otherAccountId: Long, start: Long, end: Long): Flow<Int> {
+        return transactionDao.getVBucksReceivedFromInRange(accountId, otherAccountId, start, end).map { it ?: 0 }
+    }
+
+    override fun getVBucksSentToInRange(accountId: Long, otherAccountId: Long, start: Long, end: Long): Flow<Int> {
+        return transactionDao.getVBucksSentToInRange(accountId, otherAccountId, start, end).map { it ?: 0 }
+    }
+
+    override fun getTransactionsInRange(accountId: Long, start: Long, end: Long): Flow<List<Transaction>> {
+        return transactionDao.getTransactionsInRange(accountId, start, end).map { entities -> entities.map { it.toDomain() } }
     }
 
     override fun getGiftsReceivedFrom(accountId: Long, senderId: Long): Flow<List<Transaction>> {

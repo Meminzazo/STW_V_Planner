@@ -16,8 +16,11 @@ interface VBucksRepository {
     suspend fun insertTransaction(transaction: Transaction): Long
     fun getBalance(accountId: Long): Flow<Int>
     suspend fun countDailyMissionsInDate(accountId: Long, timestamp: Long): Int
-    
+
     fun getVBucksReceivedFrom(accountId: Long, otherAccountId: Long): Flow<Int>
     fun getVBucksSentTo(accountId: Long, otherAccountId: Long): Flow<Int>
+    fun getVBucksReceivedFromInRange(accountId: Long, otherAccountId: Long, start: Long, end: Long): Flow<Int>
+    fun getVBucksSentToInRange(accountId: Long, otherAccountId: Long, start: Long, end: Long): Flow<Int>
     fun getGiftsReceivedFrom(accountId: Long, senderId: Long): Flow<List<Transaction>>
+    fun getTransactionsInRange(accountId: Long, start: Long, end: Long): Flow<List<Transaction>>
 }
