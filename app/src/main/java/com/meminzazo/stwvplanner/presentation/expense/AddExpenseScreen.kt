@@ -7,6 +7,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -25,9 +26,11 @@ fun AddExpenseScreen(
     val amount by viewModel.amount.collectAsState()
     val itemType by viewModel.itemType.collectAsState()
     val otherAccounts by viewModel.otherAccounts.collectAsState()
+    val externalRecipients by viewModel.externalRecipients.collectAsState()
 
     var expandedRecipient by remember { mutableStateOf(false) }
     var expandedItemType by remember { mutableStateOf(false) }
+    var showOtherRecipientDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.uiEvent.collect { event ->
@@ -36,6 +39,37 @@ fun AddExpenseScreen(
                 is AddExpenseViewModel.UiEvent.ShowError -> snackbarHostState.showSnackbar(event.message)
             }
         }
+    }
+
+    if (showOtherRecipientDialog) {
+        var otherName by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showOtherRecipientDialog = false },
+            title = { Text("Nuevo Destinatario") },
+            text = {
+                OutlinedTextField(
+                    value = otherName,
+                    onValueChange = { otherName = it },
+                    label = { Text("Nombre del Amigo / Cuenta") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    if (otherName.isNotBlank()) {
+                        viewModel.onRecipientSelected(otherName, null)
+                        showOtherRecipientDialog = false
+                    }
+                }) {
+                    Text("Aceptar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showOtherRecipientDialog = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -63,29 +97,45 @@ fun AddExpenseScreen(
             ) {
                 OutlinedTextField(
                     value = recipientName,
-                    onValueChange = viewModel::onRecipientNameChange,
+                    onValueChange = {},
+                    readOnly = true,
                     label = { Text("Cuenta que recibe (Amigo/Secundaria)") },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable, true),
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true),
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedRecipient) }
                 )
 
-                if (otherAccounts.isNotEmpty()) {
-                    ExposedDropdownMenu(
-                        expanded = expandedRecipient,
-                        onDismissRequest = { expandedRecipient = false }
-                    ) {
-                        otherAccounts.forEach { account ->
-                            DropdownMenuItem(
-                                text = { Text(account.name) },
-                                onClick = {
-                                    viewModel.onRecipientSelected(account)
-                                    expandedRecipient = false
-                                }
-                            )
-                        }
+                ExposedDropdownMenu(
+                    expanded = expandedRecipient,
+                    onDismissRequest = { expandedRecipient = false }
+                ) {
+                    otherAccounts.forEach { account ->
+                        DropdownMenuItem(
+                            text = { Text(account.name + " (Dependiente)") },
+                            onClick = {
+                                viewModel.onRecipientSelected(account.name, account.id)
+                                expandedRecipient = false
+                            }
+                        )
                     }
+                    externalRecipients.forEach { name ->
+                        DropdownMenuItem(
+                            text = { Text(name) },
+                            onClick = {
+                                viewModel.onRecipientSelected(name, null)
+                                expandedRecipient = false
+                            }
+                        )
+                    }
+                    HorizontalDivider()
+                    DropdownMenuItem(
+                        text = { Text("Otros...", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold) },
+                        onClick = {
+                            showOtherRecipientDialog = true
+                            expandedRecipient = false
+                        }
+                    )
                 }
             }
 

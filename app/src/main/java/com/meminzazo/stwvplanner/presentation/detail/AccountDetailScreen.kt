@@ -21,6 +21,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -29,6 +30,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import com.meminzazo.stwvplanner.domain.model.Account
 import com.meminzazo.stwvplanner.domain.model.VBucksSource
 import com.meminzazo.stwvplanner.domain.model.TransactionType
+import com.meminzazo.stwvplanner.domain.model.Transaction
+import java.text.SimpleDateFormat
+import java.util.*
 
 private val EARNINGS_COLORS = listOf(
     Color(0xFF4CAF50), // DAILY
@@ -54,13 +58,13 @@ private val EXPENSES_COLORS = listOf(
 @Composable
 fun DistributionPagerCard(
     baseTitle: String,
+    pagerState: androidx.compose.foundation.pager.PagerState,
+    onClick: () -> Unit,
     monthlyContent: @Composable () -> Unit,
     totalContent: @Composable () -> Unit
 ) {
-    val pagerState = rememberPagerState(pageCount = { 2 })
-
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -75,7 +79,7 @@ fun DistributionPagerCard(
             }
             Spacer(modifier = Modifier.height(8.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                repeat(2) { i ->
+                repeat(pagerState.pageCount) { i ->
                     val selected = pagerState.currentPage == i
                     Box(
                         modifier = Modifier
@@ -159,18 +163,32 @@ private fun ExpensesPieContent(data: Map<String, Int>) {
 }
 
 @Composable
-fun EarningsDistributionCard(monthly: Map<VBucksSource, Int>, total: Map<VBucksSource, Int>) {
+fun EarningsDistributionCard(
+    monthly: Map<VBucksSource, Int>, 
+    total: Map<VBucksSource, Int>,
+    onClick: (Boolean) -> Unit // true = mensual, false = total
+) {
+    val pagerState = rememberPagerState(pageCount = { 2 })
     DistributionPagerCard(
         baseTitle = "Distribución de Ingresos",
+        pagerState = pagerState,
+        onClick = { onClick(pagerState.currentPage == 0) },
         monthlyContent = { EarningsPieContent(monthly) },
         totalContent = { EarningsPieContent(total) }
     )
 }
 
 @Composable
-fun ExpensesDistributionCard(monthly: Map<String, Int>, total: Map<String, Int>) {
+fun ExpensesDistributionCard(
+    monthly: Map<String, Int>, 
+    total: Map<String, Int>,
+    onClick: (Boolean) -> Unit
+) {
+    val pagerState = rememberPagerState(pageCount = { 2 })
     DistributionPagerCard(
         baseTitle = "Distribución de Egresos",
+        pagerState = pagerState,
+        onClick = { onClick(pagerState.currentPage == 0) },
         monthlyContent = { ExpensesPieContent(monthly) },
         totalContent = { ExpensesPieContent(total) }
     )
@@ -191,11 +209,16 @@ fun AccountDetailScreen(
     val dependentRelations by viewModel.dependentRelations.collectAsState()
     val earningsDesglosadas by viewModel.earningsDesglosadas.collectAsState()
     val earningsDesglosadasMensual by viewModel.earningsDesglosadasMensual.collectAsState()
+    val earningsTransactions by viewModel.earningsTransactions.collectAsState()
+    val earningsTransactionsMensual by viewModel.earningsTransactionsMensual.collectAsState()
     val expenseDistribution by viewModel.expenseDistribution.collectAsState()
     val expenseDistributionMensual by viewModel.expenseDistributionMensual.collectAsState()
+    val expenseTransactions by viewModel.expenseTransactions.collectAsState()
+    val expenseTransactionsMensual by viewModel.expenseTransactionsMensual.collectAsState()
 
     var showExternalDialog by remember { mutableStateOf(false) }
     var showAddDependentDialog by remember { mutableStateOf(false) }
+    var distributionToShow by remember { mutableStateOf<Pair<String, List<Transaction>>?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.uiEvent.collect { event ->
@@ -203,6 +226,15 @@ fun AccountDetailScreen(
                 is AccountDetailViewModel.UiEvent.ShowError -> snackbarHostState.showSnackbar(event.message)
             }
         }
+    }
+
+    val dist = distributionToShow
+    if (dist != null) {
+        DistributionHistoryDialog(
+            title = dist.first,
+            transactions = dist.second,
+            onDismiss = { distributionToShow = null }
+        )
     }
 
     if (showExternalDialog) {
@@ -250,13 +282,27 @@ fun AccountDetailScreen(
 
             if (earningsDesglosadas.isNotEmpty() || earningsDesglosadasMensual.isNotEmpty()) {
                 item {
-                    EarningsDistributionCard(earningsDesglosadasMensual, earningsDesglosadas)
+                    EarningsDistributionCard(
+                        monthly = earningsDesglosadasMensual,
+                        total = earningsDesglosadas,
+                        onClick = { isMonthly ->
+                            val txs = if (isMonthly) earningsTransactionsMensual else earningsTransactions
+                            distributionToShow = "Ingresos (${if (isMonthly) "Mes" else "Total"})" to txs
+                        }
+                    )
                 }
             }
 
             if (expenseDistribution.isNotEmpty() || expenseDistributionMensual.isNotEmpty()) {
                 item {
-                    ExpensesDistributionCard(expenseDistributionMensual, expenseDistribution)
+                    ExpensesDistributionCard(
+                        monthly = expenseDistributionMensual,
+                        total = expenseDistribution,
+                        onClick = { isMonthly ->
+                            val txs = if (isMonthly) expenseTransactionsMensual else expenseTransactions
+                            distributionToShow = "Egresos (${if (isMonthly) "Mes" else "Total"})" to txs
+                        }
+                    )
                 }
             }
 
@@ -414,6 +460,83 @@ fun AddDependentDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text("Cancelar")
+            }
+        }
+    )
+}
+
+@Composable
+fun DistributionHistoryDialog(
+    title: String,
+    transactions: List<Transaction>,
+    onDismiss: () -> Unit
+) {
+    val sdf = remember { SimpleDateFormat("dd/MM/yy", Locale.getDefault()) }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Fecha", Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text("Detalle", Modifier.weight(2f), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text("Monto", Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 12.sp, textAlign = TextAlign.End)
+                }
+                HorizontalDivider()
+                LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
+                    items(transactions.sortedByDescending { it.date }) { tx ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(sdf.format(Date(tx.date)), Modifier.weight(1f), fontSize = 11.sp)
+                            val detailText = when {
+                                tx.itemName?.isNotBlank() == true -> tx.itemName
+                                tx.recipientAccountName?.isNotBlank() == true -> "A: ${tx.recipientAccountName}"
+                                else -> tx.description.takeIf { it.isNotBlank() } ?: tx.source.name
+                            }
+                            Text(detailText, Modifier.weight(2f), fontSize = 11.sp)
+                            val signed = if (tx.type == TransactionType.EARN) "+${tx.amount}" else "-${tx.amount}"
+                            val color = if (tx.type == TransactionType.EARN) Color(0xFF4CAF50) else Color.Red
+                            Text(
+                                signed, 
+                                Modifier.weight(1f), 
+                                fontSize = 11.sp, 
+                                textAlign = TextAlign.End, 
+                                color = color,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        HorizontalDivider(thickness = 0.5.dp, color = Color.LightGray)
+                    }
+                    if (transactions.isEmpty()) {
+                        item {
+                            Text("Sin transacciones.", Modifier.padding(16.dp), fontSize = 12.sp, color = Color.Gray)
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("TOTAL", fontWeight = FontWeight.ExtraBold)
+                    val total = transactions.sumOf { if (it.type == TransactionType.EARN) it.amount else -it.amount }
+                    Text(
+                        if (total >= 0) "+$total" else "$total", 
+                        fontWeight = FontWeight.ExtraBold, 
+                        color = if (total >= 0) Color(0xFF4CAF50) else Color.Red
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cerrar")
             }
         }
     )

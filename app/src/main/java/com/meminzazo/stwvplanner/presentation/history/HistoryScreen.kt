@@ -8,6 +8,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -49,11 +51,52 @@ fun HistoryScreen(
             )
         }
     ) { paddingValues ->
-        val modifier = Modifier.padding(paddingValues).fillMaxSize()
-        if (state.isDependent) {
-            DependentLedger(state, modifier)
-        } else {
-            MainAccountTable(state, modifier)
+        Column(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
+            MonthSelector(
+                selectedMonth = state.selectedMonthName,
+                onPreviousMonth = { viewModel.onMonthChange(-1) },
+                onNextMonth = { viewModel.onMonthChange(1) }
+            )
+            
+            if (state.isDependent) {
+                DependentLedger(state, Modifier.weight(1f))
+            } else {
+                MainAccountTable(state, Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+fun MonthSelector(
+    selectedMonth: String,
+    onPreviousMonth: () -> Unit,
+    onNextMonth: () -> Unit
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 2.dp,
+        shadowElevation = 1.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            IconButton(onClick = onPreviousMonth) {
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Mes Anterior")
+            }
+            Text(
+                text = selectedMonth,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            IconButton(onClick = onNextMonth) {
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Mes Siguiente")
+            }
         }
     }
 }

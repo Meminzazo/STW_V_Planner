@@ -8,7 +8,7 @@ import com.meminzazo.stwvplanner.domain.model.Transaction
 fun AccountEntity.toDomain(balance: Int = 0): Account = Account(
     id = id,
     name = name,
-    isMain = parentAccountId == null,
+    isMain = isMain,
     balance = balance,
     parentAccountId = parentAccountId
 )
@@ -16,6 +16,7 @@ fun AccountEntity.toDomain(balance: Int = 0): Account = Account(
 fun Account.toEntity(): AccountEntity = AccountEntity(
     id = id,
     name = name,
+    isMain = isMain,
     parentAccountId = parentAccountId
 )
 

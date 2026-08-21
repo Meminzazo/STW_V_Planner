@@ -38,7 +38,9 @@ import com.meminzazo.stwvplanner.domain.model.VBucksSource
 )
 data class TransactionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val syncId: String = java.util.UUID.randomUUID().toString(),
     val accountId: Long,
+    val accountSyncId: String? = null,
     val amount: Int,
     val type: TransactionType,
     val source: VBucksSource,
@@ -48,5 +50,7 @@ data class TransactionEntity(
     val senderAccountId: Long? = null,
     val receiverAccountId: Long? = null,
     val itemType: ItemType? = null,
-    val itemName: String? = null
+    val itemName: String? = null,
+    val isSynced: Boolean = false,
+    val lastUpdated: Long = System.currentTimeMillis()
 )

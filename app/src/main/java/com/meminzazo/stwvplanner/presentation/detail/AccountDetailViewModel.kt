@@ -132,6 +132,14 @@ class AccountDetailViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
+    val earningsTransactions = repository.getTransactions(accountId)
+        .map { transactions -> transactions.filter { it.type == TransactionType.EARN } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val earningsTransactionsMensual = repository.getTransactionsInRange(accountId, startOfMonth, endOfMonth)
+        .map { transactions -> transactions.filter { it.type == TransactionType.EARN } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val expenseDistribution = repository.getTransactions(accountId)
         .map { transactions ->
             transactions.filter { it.type == TransactionType.SPEND }
@@ -152,6 +160,14 @@ class AccountDetailViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
+    val expenseTransactions = repository.getTransactions(accountId)
+        .map { transactions -> transactions.filter { it.type == TransactionType.SPEND } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val expenseTransactionsMensual = repository.getTransactionsInRange(accountId, startOfMonth, endOfMonth)
+        .map { transactions -> transactions.filter { it.type == TransactionType.SPEND } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // Lógica para obtener balances por relación (Solo dependientes de esta cuenta)
     val dependentAccounts = repository.getAccountsByParent(accountId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -163,10 +179,7 @@ class AccountDetailViewModel @Inject constructor(
         val flows = accounts.map { account ->
             combine(
                 repository.getBalance(account.id),
-                combine(
-                    repository.getVBucksReceivedFromInRange(account.id, accountId, startOfMonth, endOfMonth),
-                    repository.getVBucksSentToInRange(account.id, accountId, startOfMonth, endOfMonth)
-                ) { received, sent -> received - sent }
+                repository.getBalanceInRange(account.id, startOfMonth, endOfMonth)
             ) { total, monthly ->
                 DependentRelation(account, total, monthly)
             }

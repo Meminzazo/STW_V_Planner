@@ -144,4 +144,12 @@ class VBucksRepositoryImpl @Inject constructor(
             entities.map { it.toDomain() }
         }
     }
+
+    override fun getBalanceInRange(accountId: Long, start: Long, end: Long): Flow<Int> {
+        return transactionDao.getBalanceByAccountInRange(accountId, start, end).map { it ?: 0 }
+    }
+
+    override fun getExternalRecipients(accountId: Long): Flow<List<String>> {
+        return transactionDao.getExternalRecipients(accountId)
+    }
 }

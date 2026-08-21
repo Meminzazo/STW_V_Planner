@@ -21,6 +21,12 @@ interface TransactionDao {
     @Query("SELECT SUM(CASE WHEN type = 'EARN' THEN amount ELSE -amount END) FROM transactions WHERE accountId = :accountId")
     fun getBalanceByAccount(accountId: Long): Flow<Int?>
 
+    @Query("SELECT SUM(CASE WHEN type = 'EARN' THEN amount ELSE -amount END) FROM transactions WHERE accountId = :accountId AND date >= :start AND date < :end")
+    fun getBalanceByAccountInRange(accountId: Long, start: Long, end: Long): Flow<Int?>
+
+    @Query("SELECT DISTINCT recipientAccountName FROM transactions WHERE accountId = :accountId AND receiverAccountId IS NULL AND recipientAccountName IS NOT NULL AND recipientAccountName != ''")
+    fun getExternalRecipients(accountId: Long): Flow<List<String>>
+
     @Query("SELECT COUNT(*) FROM transactions WHERE accountId = :accountId AND source = 'DAILY' AND date >= :startOfDay AND date < :endOfDay")
     suspend fun countDailyMissionsInDateRange(accountId: Long, startOfDay: Long, endOfDay: Long): Int
 

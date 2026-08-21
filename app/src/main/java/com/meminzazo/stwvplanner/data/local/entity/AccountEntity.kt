@@ -19,6 +19,11 @@ import androidx.room.PrimaryKey
 )
 data class AccountEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val syncId: String = java.util.UUID.randomUUID().toString(),
     val name: String,
-    val parentAccountId: Long? = null
+    val isMain: Boolean = false,
+    val parentAccountId: Long? = null,
+    val parentSyncId: String? = null,
+    val isSynced: Boolean = false,
+    val lastUpdated: Long = System.currentTimeMillis()
 )

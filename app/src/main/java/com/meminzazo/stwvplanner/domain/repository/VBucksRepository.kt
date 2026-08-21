@@ -23,4 +23,6 @@ interface VBucksRepository {
     fun getVBucksSentToInRange(accountId: Long, otherAccountId: Long, start: Long, end: Long): Flow<Int>
     fun getGiftsReceivedFrom(accountId: Long, senderId: Long): Flow<List<Transaction>>
     fun getTransactionsInRange(accountId: Long, start: Long, end: Long): Flow<List<Transaction>>
+    fun getBalanceInRange(accountId: Long, start: Long, end: Long): Flow<Int>
+    fun getExternalRecipients(accountId: Long): Flow<List<String>>
 }

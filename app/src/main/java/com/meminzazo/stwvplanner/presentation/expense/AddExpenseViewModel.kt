@@ -30,6 +30,9 @@ class AddExpenseViewModel @Inject constructor(
     val otherAccounts = repository.getAccountsByParent(accountId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val externalRecipients = repository.getExternalRecipients(accountId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     private val _uiEvent = MutableSharedFlow<UiEvent>()
     val uiEvent = _uiEvent.asSharedFlow()
 
@@ -49,12 +52,12 @@ class AddExpenseViewModel @Inject constructor(
 
     fun onRecipientNameChange(value: String) { 
         _recipientName.value = value 
-        selectedReceiverId = null // Si escribe a mano, reseteamos el ID
+        selectedReceiverId = null
     }
 
-    fun onRecipientSelected(account: com.meminzazo.stwvplanner.domain.model.Account) {
-        _recipientName.value = account.name
-        selectedReceiverId = account.id
+    fun onRecipientSelected(name: String, id: Long?) {
+        _recipientName.value = name
+        selectedReceiverId = id
     }
 
     fun onItemTypeChange(value: ItemType) { _itemType.value = value }
