@@ -9,6 +9,9 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.meminzazo.stwvplanner.R
 
+/**
+ * Trabajador encargado de mostrar la notificación de recordatorio diario.
+ */
 class DailyReminderWorker(
     context: Context,
     params: WorkerParameters
@@ -23,19 +26,24 @@ class DailyReminderWorker(
         val notificationManager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val channelId = "daily_reminder_channel"
 
+        // Crear canal de notificación para Android 8.0+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 channelId,
                 "Recordatorios Diarios",
                 NotificationManager.IMPORTANCE_DEFAULT
-            )
+            ).apply {
+                description = "Notificaciones para recordar las misiones diarias de Salvar el Mundo"
+            }
             notificationManager.createNotificationChannel(channel)
         }
 
+        // Construir la notificación
         val notification = NotificationCompat.Builder(applicationContext, channelId)
             .setContentTitle("¿Ya hiciste tu misión diaria?")
-            .setContentText("No olvides registrar tus pavos ganados hoy.")
-            .setSmallIcon(android.R.drawable.ic_dialog_info) // Temporal
+            .setContentText("No olvides registrar tus pavos ganados hoy en STW V Planner.")
+            .setSmallIcon(R.drawable.ic_vbucks) // Usando el nuevo icono
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
             .build()
 

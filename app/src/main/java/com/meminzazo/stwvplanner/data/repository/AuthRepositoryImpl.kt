@@ -21,7 +21,7 @@ class AuthRepositoryImpl @Inject constructor(
                 User(
                     id = it.uid,
                     email = it.email,
-                    displayName = it.displayName,
+                    displayName = it.displayName ?: it.email?.split("@")?.get(0),
                     photoUrl = it.photoUrl?.toString()
                 )
             }
@@ -36,13 +36,36 @@ class AuthRepositoryImpl @Inject constructor(
             val credential = GoogleAuthProvider.getCredential(idToken, null)
             val result = firebaseAuth.signInWithCredential(credential).await()
             val firebaseUser = result.user ?: return Result.failure(Exception("Usuario nulo"))
-            val user = User(
-                id = firebaseUser.uid,
-                email = firebaseUser.email,
-                displayName = firebaseUser.displayName,
-                photoUrl = firebaseUser.photoUrl?.toString()
-            )
-            Result.success(user)
+            Result.success(mapFirebaseUser(firebaseUser))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun signInWithEmail(email: String, password: String): Result<User> {
+        return try {
+            val result = firebaseAuth.signInWithEmailAndPassword(email, password).await()
+            val firebaseUser = result.user ?: return Result.failure(Exception("Error en inicio de sesión"))
+            Result.success(mapFirebaseUser(firebaseUser))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun signUpWithEmail(email: String, password: String): Result<User> {
+        return try {
+            val result = firebaseAuth.createUserWithEmailAndPassword(email, password).await()
+            val firebaseUser = result.user ?: return Result.failure(Exception("Error al crear cuenta"))
+            Result.success(mapFirebaseUser(firebaseUser))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun sendPasswordResetEmail(email: String): Result<Unit> {
+        return try {
+            firebaseAuth.sendPasswordResetEmail(email).await()
+            Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -50,5 +73,14 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun signOut() {
         firebaseAuth.signOut()
+    }
+
+    private fun mapFirebaseUser(firebaseUser: com.google.firebase.auth.FirebaseUser): User {
+        return User(
+            id = firebaseUser.uid,
+            email = firebaseUser.email,
+            displayName = firebaseUser.displayName ?: firebaseUser.email?.split("@")?.get(0),
+            photoUrl = firebaseUser.photoUrl?.toString()
+        )
     }
 }

@@ -24,8 +24,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.KeyboardType
 import com.meminzazo.stwvplanner.domain.model.Account
 import com.meminzazo.stwvplanner.domain.model.VBucksSource
 import com.meminzazo.stwvplanner.domain.model.TransactionType
@@ -33,170 +31,17 @@ import com.meminzazo.stwvplanner.domain.model.Transaction
 import com.meminzazo.stwvplanner.presentation.common.ManualEntryDialog
 import java.text.SimpleDateFormat
 import java.util.*
+import com.meminzazo.stwvplanner.presentation.theme.*
 
-private val EARNINGS_COLORS = listOf(
-    Color(0xFF4CAF50), // DAILY
-    Color(0xFF2196F3), // ALERT
-    Color(0xFFFFC107), // EXTERNAL / PACK
-    Color(0xFF9C27B0), // SSD
-    Color(0xFFE91E63)  // OTHERS
-)
-
-private val EXPENSES_COLORS = listOf(
-    Color(0xFFE91E63),
-    Color(0xFFFF5722),
-    Color(0xFF795548),
-    Color(0xFF607D8B),
-    Color(0xFF3F51B5),
-    Color(0xFF009688)
-)
-
-@Composable
-fun DistributionPagerCard(
-    baseTitle: String,
-    pagerState: androidx.compose.foundation.pager.PagerState,
-    onClick: () -> Unit,
-    monthlyContent: @Composable () -> Unit,
-    totalContent: @Composable () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() },
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = baseTitle + if (pagerState.currentPage == 0) " · Mensual" else " · Total",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            HorizontalPager(state = pagerState, modifier = Modifier.fillMaxWidth()) { page ->
-                if (page == 0) monthlyContent() else totalContent()
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                repeat(pagerState.pageCount) { i ->
-                    val selected = pagerState.currentPage == i
-                    Box(
-                        modifier = Modifier
-                            .padding(3.dp)
-                            .size(if (selected) 8.dp else 6.dp)
-                            .clip(CircleShape)
-                            .background(if (selected) MaterialTheme.colorScheme.primary else Color.LightGray)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun EarningsPieContent(data: Map<VBucksSource, Int>) {
-    val total = data.values.sum().toFloat()
-    if (data.isEmpty() || total == 0f) {
-        Text("Sin ingresos en este periodo.", fontSize = 12.sp, color = Color.Gray)
-        return
-    }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Canvas(modifier = Modifier.size(100.dp)) {
-            var startAngle = 0f
-            data.entries.forEachIndexed { index, entry ->
-                val sweepAngle = (entry.value / total) * 360f
-                drawArc(
-                    color = EARNINGS_COLORS.getOrElse(index) { Color.Gray },
-                    startAngle = startAngle,
-                    sweepAngle = sweepAngle,
-                    useCenter = true
-                )
-                startAngle += sweepAngle
-            }
-        }
-        Spacer(modifier = Modifier.width(24.dp))
-        Column {
-            data.entries.forEachIndexed { index, entry ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(12.dp).background(EARNINGS_COLORS.getOrElse(index) { Color.Gray }))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("${entry.key.name}: ${entry.value}", fontSize = 12.sp)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ExpensesPieContent(data: Map<String, Int>) {
-    val total = data.values.sum().toFloat()
-    if (data.isEmpty() || total == 0f) {
-        Text("Sin egresos en este periodo.", fontSize = 12.sp, color = Color.Gray)
-        return
-    }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Canvas(modifier = Modifier.size(100.dp)) {
-            var startAngle = 0f
-            data.entries.forEachIndexed { index, entry ->
-                val sweepAngle = (entry.value.toFloat() / total) * 360f
-                drawArc(
-                    color = EXPENSES_COLORS.getOrElse(index) { Color.Gray },
-                    startAngle = startAngle,
-                    sweepAngle = sweepAngle,
-                    useCenter = true
-                )
-                startAngle += sweepAngle
-            }
-        }
-        Spacer(modifier = Modifier.width(24.dp))
-        Column {
-            data.entries.forEachIndexed { index, entry ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(12.dp).background(EXPENSES_COLORS.getOrElse(index) { Color.Gray }))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("${entry.key}: ${entry.value}", fontSize = 12.sp)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun EarningsDistributionCard(
-    monthly: Map<VBucksSource, Int>,
-    total: Map<VBucksSource, Int>,
-    onClick: (Boolean) -> Unit
-) {
-    val pagerState = rememberPagerState(pageCount = { 2 })
-    DistributionPagerCard(
-        baseTitle = "Distribución de Ingresos",
-        pagerState = pagerState,
-        onClick = { onClick(pagerState.currentPage == 0) },
-        monthlyContent = { EarningsPieContent(monthly) },
-        totalContent = { EarningsPieContent(total) }
-    )
-}
-
-@Composable
-fun ExpensesDistributionCard(
-    monthly: Map<String, Int>,
-    total: Map<String, Int>,
-    onClick: (Boolean) -> Unit
-) {
-    val pagerState = rememberPagerState(pageCount = { 2 })
-    DistributionPagerCard(
-        baseTitle = "Distribución de Egresos",
-        pagerState = pagerState,
-        onClick = { onClick(pagerState.currentPage == 0) },
-        monthlyContent = { ExpensesPieContent(monthly) },
-        totalContent = { ExpensesPieContent(total) }
-    )
-}
-
+/**
+ * Pantalla de detalle de una cuenta con estética Fortnite/STW.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AccountDetailScreen(
     viewModel: AccountDetailViewModel = hiltViewModel(),
     onPopBackStack: () -> Unit,
     onNavigateToHistory: (Long) -> Unit,
-    onNavigateToAddExpense: (Long) -> Unit,
     snackbarHostState: SnackbarHostState
 ) {
     val account by viewModel.account.collectAsState()
@@ -213,7 +58,6 @@ fun AccountDetailScreen(
     val expenseTransactionsMensual by viewModel.expenseTransactionsMensual.collectAsState()
     val dependentAccounts by viewModel.dependentAccounts.collectAsState()
 
-    var showExternalDialog by remember { mutableStateOf(false) }
     var showAddDependentDialog by remember { mutableStateOf(false) }
     var showManualEntryDialog by remember { mutableStateOf(false) }
     var showDailyAmountDialog by remember { mutableStateOf(false) }
@@ -236,16 +80,6 @@ fun AccountDetailScreen(
             title = distributionToShow!!.first,
             transactions = distributionToShow!!.second,
             onDismiss = { distributionToShow = null }
-        )
-    }
-
-    if (showExternalDialog) {
-        AddExternalDialog(
-            onDismiss = { showExternalDialog = false },
-            onConfirm = { amount, desc ->
-                viewModel.onAddExternalClick(amount, desc)
-                showExternalDialog = false
-            }
         )
     }
 
@@ -311,8 +145,10 @@ fun AccountDetailScreen(
             TopAppBar(
                 title = { 
                     Text(
-                        text = account?.name ?: "Detalle",
-                        modifier = Modifier.clickable { showRenameDialog = true }
+                        text = account?.name ?: "DETALLE",
+                        modifier = Modifier.clickable { showRenameDialog = true },
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Black
                     ) 
                 },
                 navigationIcon = {
@@ -327,97 +163,47 @@ fun AccountDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
+            item { Spacer(modifier = Modifier.height(8.dp)) }
+
+            // --- SALDO ---
             item {
+                SectionTitle("ESTADO FINANCIERO")
                 BalanceCard(balance)
             }
 
+            // --- ACCIONES RÁPIDAS ---
             item {
-                Text("Acciones Rápidas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                if (account?.parentAccountId == null) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = { showDailyAmountDialog = true },
-                            modifier = Modifier.weight(1f),
-                            enabled = !isDailyRegistered
-                        ) {
-                            Text("Diaria (Seleccionar)")
-                        }
-                        Button(
-                            onClick = { viewModel.onAddAlertClick() },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Alerta +50")
-                        }
+                SectionTitle("ACCIONES RÁPIDAS")
+                QuickActionsGrid(
+                    account = account,
+                    isDailyRegistered = isDailyRegistered,
+                    onDailyClick = { showDailyAmountDialog = true },
+                    onAlertClick = { viewModel.onAddAlertClick() },
+                    onExternalClick = {
+                        manualEntryInitialType = TransactionType.EARN
+                        manualEntryInitialSource = VBucksSource.EXTERNAL
+                        showManualEntryDialog = true
+                    },
+                    onExpenseClick = {
+                        manualEntryInitialType = TransactionType.SPEND
+                        manualEntryInitialSource = VBucksSource.GIFT
+                        showManualEntryDialog = true
+                    },
+                    onManualClick = {
+                        manualEntryInitialType = null
+                        manualEntryInitialSource = null
+                        showManualEntryDialog = true
                     }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = { 
-                                manualEntryInitialType = TransactionType.EARN
-                                manualEntryInitialSource = VBucksSource.EXTERNAL
-                                showManualEntryDialog = true 
-                            },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Externo (+)")
-                        }
-                        OutlinedButton(
-                            onClick = { 
-                                manualEntryInitialType = TransactionType.SPEND
-                                manualEntryInitialSource = VBucksSource.GIFT
-                                showManualEntryDialog = true 
-                            },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Gasto / Regalo")
-                        }
-                    }
-                    Button(
-                        onClick = { 
-                            manualEntryInitialType = null
-                            manualEntryInitialSource = null
-                            showManualEntryDialog = true 
-                        },
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
-                    ) {
-                        Text("Registro Manual")
-                    }
-                } else {
-                    OutlinedButton(
-                        onClick = { 
-                            manualEntryInitialType = TransactionType.SPEND
-                            manualEntryInitialSource = VBucksSource.GIFT
-                            showManualEntryDialog = true 
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Registrar Gasto de esta cuenta")
-                    }
-                    Button(
-                        onClick = { 
-                            manualEntryInitialType = null
-                            manualEntryInitialSource = null
-                            showManualEntryDialog = true 
-                        },
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
-                    ) {
-                        Text("Registro Manual")
-                    }
-                }
+                )
             }
 
-            if (earningsDesglosadas.isNotEmpty() || earningsDesglosadasMensual.isNotEmpty()) {
-                item {
+            // --- ESTADÍSTICAS ---
+            item {
+                SectionTitle("ESTADÍSTICAS")
+                if (earningsDesglosadas.isNotEmpty() || earningsDesglosadasMensual.isNotEmpty()) {
                     EarningsDistributionCard(
                         monthly = earningsDesglosadasMensual,
                         total = earningsDesglosadas,
@@ -429,8 +215,8 @@ fun AccountDetailScreen(
                 }
             }
 
-            if (expenseDistribution.isNotEmpty() || expenseDistributionMensual.isNotEmpty()) {
-                item {
+            item {
+                if (expenseDistribution.isNotEmpty() || expenseDistributionMensual.isNotEmpty()) {
                     ExpensesDistributionCard(
                         monthly = expenseDistributionMensual,
                         total = expenseDistribution,
@@ -442,16 +228,19 @@ fun AccountDetailScreen(
                 }
             }
 
+            // --- HISTORIAL ---
             item {
                 Button(
                     onClick = { onNavigateToHistory(account?.id ?: 0) },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
                 ) {
-                    Text("Ver Historial Detallado")
+                    Text("VER HISTORIAL DETALLADO", fontWeight = FontWeight.Black)
                 }
             }
 
+            // --- DEPENDIENTES ---
             if (account?.parentAccountId == null) {
                 item {
                     Row(
@@ -459,9 +248,9 @@ fun AccountDetailScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Cuentas Dependientes", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        SectionTitle("CUENTAS DEPENDIENTES")
                         IconButton(onClick = { showAddDependentDialog = true }) {
-                            Icon(Icons.Default.Add, contentDescription = "Añadir Dependiente")
+                            Icon(Icons.Default.Add, contentDescription = "Añadir", tint = FortAccent)
                         }
                     }
                 }
@@ -474,6 +263,104 @@ fun AccountDetailScreen(
                     )
                 }
             }
+            
+            item { Spacer(modifier = Modifier.height(24.dp)) }
+        }
+    }
+}
+
+@Composable
+fun SectionTitle(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        color = FortAccent,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(bottom = 8.dp)
+    )
+}
+
+@Composable
+fun QuickActionsGrid(
+    account: Account?,
+    isDailyRegistered: Boolean,
+    onDailyClick: () -> Unit,
+    onAlertClick: () -> Unit,
+    onExternalClick: () -> Unit,
+    onExpenseClick: () -> Unit,
+    onManualClick: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (account?.parentAccountId == null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                ActionButton(
+                    text = "DIARIA", 
+                    color = EarnGreen, 
+                    enabled = !isDailyRegistered, 
+                    modifier = Modifier.weight(1f), 
+                    onClick = onDailyClick
+                )
+                ActionButton(
+                    text = "ALERTA +50", 
+                    color = AlertBlue, 
+                    modifier = Modifier.weight(1f), 
+                    onClick = onAlertClick
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                ActionButton(
+                    text = "EXTERNO (+)", 
+                    color = StwCardSurface, 
+                    isOutlined = true,
+                    modifier = Modifier.weight(1f), 
+                    onClick = onExternalClick
+                )
+                ActionButton(
+                    text = "GASTO / REGALO", 
+                    color = StwCardSurface, 
+                    isOutlined = true,
+                    modifier = Modifier.weight(1f), 
+                    onClick = onExpenseClick
+                )
+            }
+        }
+        ActionButton(
+            text = "REGISTRO MANUAL (EXCEL)", 
+            color = FortPurple, 
+            modifier = Modifier.fillMaxWidth(), 
+            onClick = onManualClick
+        )
+    }
+}
+
+@Composable
+fun ActionButton(
+    text: String,
+    color: Color,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    isOutlined: Boolean = false,
+    onClick: () -> Unit
+) {
+    if (isOutlined) {
+        OutlinedButton(
+            onClick = onClick,
+            modifier = modifier.height(50.dp),
+            enabled = enabled,
+            shape = MaterialTheme.shapes.small,
+            border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.5f))
+        ) {
+            Text(text, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        }
+    } else {
+        Button(
+            onClick = onClick,
+            modifier = modifier.height(50.dp),
+            enabled = enabled,
+            shape = MaterialTheme.shapes.small,
+            colors = ButtonDefaults.buttonColors(containerColor = color)
+        ) {
+            Text(text, fontWeight = FontWeight.Black, fontSize = 12.sp)
         }
     }
 }
@@ -482,28 +369,149 @@ fun AccountDetailScreen(
 fun BalanceCard(balance: Int) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+        colors = CardDefaults.cardColors(containerColor = FortDarkBlue),
+        border = androidx.compose.foundation.BorderStroke(2.dp, VBucksGold.copy(alpha = 0.5f))
     ) {
-        Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("Saldo Actual", style = MaterialTheme.typography.labelLarge)
-            Text("$balance V-Bucks", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.ExtraBold)
+        Column(
+            modifier = Modifier.padding(24.dp), 
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("SALDO ACTUAL", style = MaterialTheme.typography.labelLarge, color = VBucksSilver)
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "$balance", 
+                    style = MaterialTheme.typography.headlineLarge, 
+                    fontWeight = FontWeight.Black,
+                    color = VBucksGold
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("V-BUCKS", style = MaterialTheme.typography.titleLarge, color = VBucksGold, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
 
-private fun formatSigned(amount: Int): String = if (amount > 0) "+$amount" else "$amount"
-private fun colorFor(amount: Int): Color = when {
-    amount > 0 -> Color(0xFF4CAF50)
-    amount < 0 -> Color.Red
-    else -> Color.Unspecified
+@Composable
+fun DistributionPagerCard(
+    baseTitle: String,
+    pagerState: androidx.compose.foundation.pager.PagerState,
+    onClick: () -> Unit,
+    monthlyContent: @Composable () -> Unit,
+    totalContent: @Composable () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
+        colors = CardDefaults.cardColors(containerColor = StwCardSurface)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = baseTitle + if (pagerState.currentPage == 0) " · MENSUAL" else " · TOTAL",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = VBucksSilver
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalPager(state = pagerState, modifier = Modifier.fillMaxWidth()) { page ->
+                if (page == 0) monthlyContent() else totalContent()
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                repeat(pagerState.pageCount) { i ->
+                    val selected = pagerState.currentPage == i
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 4.dp)
+                            .size(width = if (selected) 16.dp else 8.dp, height = 4.dp)
+                            .clip(CircleShape)
+                            .background(if (selected) FortAccent else Color.Gray)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun EarningsDistributionCard(monthly: Map<VBucksSource, Int>, total: Map<VBucksSource, Int>, onClick: (Boolean) -> Unit) {
+    val pagerState = rememberPagerState(pageCount = { 2 })
+    DistributionPagerCard("DISTRIBUCIÓN DE INGRESOS", pagerState, { onClick(pagerState.currentPage == 0) }, 
+        { EarningsPieContent(monthly) }, { EarningsPieContent(total) })
+}
+
+@Composable
+fun ExpensesDistributionCard(monthly: Map<String, Int>, total: Map<String, Int>, onClick: (Boolean) -> Unit) {
+    val pagerState = rememberPagerState(pageCount = { 2 })
+    DistributionPagerCard("DISTRIBUCIÓN DE EGRESOS", pagerState, { onClick(pagerState.currentPage == 0) }, 
+        { ExpensesPieContent(monthly) }, { ExpensesPieContent(total) })
+}
+
+private val STATS_COLORS = listOf(EarnGreen, AlertBlue, FortPurple, FortBlue, FortAccent)
+
+@Composable
+private fun EarningsPieContent(data: Map<VBucksSource, Int>) {
+    val total = data.values.sum().toFloat()
+    if (data.isEmpty() || total == 0f) {
+        Text("SIN INGRESOS REGISTRADOS", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(vertical = 20.dp))
+        return
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
+        Canvas(modifier = Modifier.size(80.dp)) {
+            var startAngle = 0f
+            data.entries.forEachIndexed { index, entry ->
+                val sweepAngle = (entry.value / total) * 360f
+                drawArc(color = STATS_COLORS.getOrElse(index) { Color.Gray }, startAngle = startAngle, sweepAngle = sweepAngle, useCenter = true)
+                startAngle += sweepAngle
+            }
+        }
+        Spacer(modifier = Modifier.width(24.dp))
+        Column {
+            data.entries.forEachIndexed { index, entry ->
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
+                    Box(modifier = Modifier.size(10.dp).background(STATS_COLORS.getOrElse(index) { Color.Gray }))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("${entry.key.name}: ${entry.value}", fontSize = 11.sp, color = VBucksSilver)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExpensesPieContent(data: Map<String, Int>) {
+    val total = data.values.sum().toFloat()
+    if (data.isEmpty() || total == 0f) {
+        Text("SIN GASTOS REGISTRADOS", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(vertical = 20.dp))
+        return
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
+        Canvas(modifier = Modifier.size(80.dp)) {
+            var startAngle = 0f
+            data.entries.forEachIndexed { index, entry ->
+                val sweepAngle = (entry.value.toFloat() / total) * 360f
+                drawArc(color = STATS_COLORS.getOrElse(index + 2) { Color.Gray }, startAngle = startAngle, sweepAngle = sweepAngle, useCenter = true)
+                startAngle += sweepAngle
+            }
+        }
+        Spacer(modifier = Modifier.width(24.dp))
+        Column {
+            data.entries.forEachIndexed { index, entry ->
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
+                    Box(modifier = Modifier.size(10.dp).background(STATS_COLORS.getOrElse(index + 2) { Color.Gray }))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("${entry.key}: ${entry.value}", fontSize = 11.sp, color = VBucksSilver)
+                }
+            }
+        }
+    }
 }
 
 @Composable
 fun RelationItem(relation: DependentRelation, onClick: () -> Unit, onEditName: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable { onClick() },
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        border = CardDefaults.outlinedCardBorder()
+        colors = CardDefaults.cardColors(containerColor = StwCardSurface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.Gray.copy(alpha = 0.2f))
     ) {
         Row(
             modifier = Modifier.padding(16.dp).fillMaxWidth(),
@@ -512,24 +520,26 @@ fun RelationItem(relation: DependentRelation, onClick: () -> Unit, onEditName: (
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                 Column {
-                    Text(relation.account.name, fontWeight = FontWeight.Medium)
+                    Text(relation.account.name.uppercase(), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                     Text(
-                        text = "Este mes: ${formatSigned(relation.monthlyBalance)}",
+                        text = "MES: ${if (relation.monthlyBalance > 0) "+" else ""}${relation.monthlyBalance}",
                         fontSize = 11.sp,
-                        color = colorFor(relation.monthlyBalance)
+                        color = if (relation.monthlyBalance >= 0) EarnGreen else SpendRed,
+                        fontWeight = FontWeight.Bold
                     )
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 IconButton(onClick = onEditName, modifier = Modifier.size(24.dp)) {
-                    Icon(Icons.Default.Edit, contentDescription = "Renombrar", modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Edit, contentDescription = "Editar", tint = FortAccent, modifier = Modifier.size(16.dp))
                 }
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text("Total", fontSize = 10.sp, color = Color.Gray)
+                Text("TOTAL", fontSize = 10.sp, color = VBucksSilver)
                 Text(
-                    text = formatSigned(relation.totalBalance),
-                    color = colorFor(relation.totalBalance),
-                    fontWeight = FontWeight.Bold
+                    text = "${if (relation.totalBalance > 0) "+" else ""}${relation.totalBalance}",
+                    color = if (relation.totalBalance >= 0) EarnGreen else SpendRed,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 16.sp
                 )
             }
         }
@@ -537,204 +547,71 @@ fun RelationItem(relation: DependentRelation, onClick: () -> Unit, onEditName: (
 }
 
 @Composable
-fun RenameAccountDialog(
-    initialName: String,
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit
-) {
-    var name by remember { mutableStateOf(initialName) }
-
+fun DailyAmountDialog(onDismiss: () -> Unit, onConfirm: (Int) -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Renombrar Cuenta") },
-        text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Nombre de la cuenta") },
-                modifier = Modifier.fillMaxWidth()
-            )
-        },
+        title = { Text("MISIÓN DIARIA", fontWeight = FontWeight.Black) },
+        text = { Text("Selecciona la recompensa de hoy:") },
         confirmButton = {
-            Button(onClick = { onConfirm(name) }, enabled = name.isNotBlank()) {
-                Text("Actualizar")
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { onConfirm(100) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = EarnGreen)) {
+                    Text("100", fontWeight = FontWeight.Black)
+                }
+                Button(onClick = { onConfirm(150) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = EarnGreen)) {
+                    Text("150", fontWeight = FontWeight.Black)
+                }
             }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancelar")
+        dismissButton = { TextButton(onClick = onDismiss) { Text("CANCELAR") } }
+    )
+}
+
+@Composable
+fun DistributionHistoryDialog(title: String, transactions: List<Transaction>, onDismiss: () -> Unit) {
+    val sdf = remember { SimpleDateFormat("dd/MM/yy", Locale.getDefault()) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title.uppercase(), fontWeight = FontWeight.Black, fontSize = 18.sp) },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    Text("FECHA", Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 10.sp, color = VBucksSilver)
+                    Text("DETALLE", Modifier.weight(2f), fontWeight = FontWeight.Bold, fontSize = 10.sp, color = VBucksSilver)
+                    Text("MONTO", Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 10.sp, color = VBucksSilver, textAlign = TextAlign.End)
+                }
+                HorizontalDivider(color = Color.Gray.copy(alpha = 0.3f))
+                LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 350.dp)) {
+                    items(transactions.sortedByDescending { it.date }) { tx ->
+                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(sdf.format(Date(tx.date)), Modifier.weight(1f), fontSize = 11.sp)
+                            val detail = tx.itemName ?: tx.recipientAccountName ?: tx.description
+                            Text(detail.uppercase(), Modifier.weight(2f), fontSize = 11.sp, maxLines = 1)
+                            val color = if (tx.type == TransactionType.EARN) EarnGreen else SpendRed
+                            Text("${if (tx.type == TransactionType.EARN) "+" else "-"}${tx.amount}", Modifier.weight(1f), fontSize = 12.sp, textAlign = TextAlign.End, color = color, fontWeight = FontWeight.Black)
+                        }
+                        HorizontalDivider(thickness = 0.5.dp, color = Color.Gray.copy(alpha = 0.2f))
+                    }
+                }
             }
-        }
+        },
+        confirmButton = { Button(onClick = onDismiss) { Text("CERRAR") } }
     )
 }
 
 @Composable
 fun AddDependentDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     var name by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Nueva Cuenta Dependiente") },
-        text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Nombre de la cuenta") },
-                modifier = Modifier.fillMaxWidth()
-            )
-        },
-        confirmButton = {
-            Button(onClick = { onConfirm(name) }) {
-                Text("Crear")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancelar")
-            }
-        }
-    )
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("NUEVO DEPENDIENTE", fontWeight = FontWeight.Black) },
+        text = { OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Nombre") }, modifier = Modifier.fillMaxWidth()) },
+        confirmButton = { Button(onClick = { onConfirm(name) }) { Text("CREAR") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("CANCELAR") } })
 }
 
 @Composable
-fun DistributionHistoryDialog(
-    title: String,
-    transactions: List<Transaction>,
-    onDismiss: () -> Unit
-) {
-    val sdf = remember { SimpleDateFormat("dd/MM/yy", Locale.getDefault()) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("Fecha", Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    Text("Detalle", Modifier.weight(2f), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    Text("Monto", Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 12.sp, textAlign = TextAlign.End)
-                }
-                HorizontalDivider()
-                LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
-                    items(transactions.sortedByDescending { it.date }) { tx ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(sdf.format(Date(tx.date)), Modifier.weight(1f), fontSize = 11.sp)
-                            val detailText = when {
-                                tx.itemName?.isNotBlank() == true -> tx.itemName
-                                tx.recipientAccountName?.isNotBlank() == true -> "A: ${tx.recipientAccountName}"
-                                else -> tx.description.takeIf { it.isNotBlank() } ?: tx.source.name
-                            }
-                            Text(detailText, Modifier.weight(2f), fontSize = 11.sp)
-                            val signed = if (tx.type == TransactionType.EARN) "+${tx.amount}" else "-${tx.amount}"
-                            val color = if (tx.type == TransactionType.EARN) Color(0xFF4CAF50) else Color.Red
-                            Text(
-                                signed,
-                                Modifier.weight(1f),
-                                fontSize = 11.sp,
-                                textAlign = TextAlign.End,
-                                color = color,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        HorizontalDivider(thickness = 0.5.dp, color = Color.LightGray)
-                    }
-                    if (transactions.isEmpty()) {
-                        item {
-                            Text("Sin transacciones.", Modifier.padding(16.dp), fontSize = 12.sp, color = Color.Gray)
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("TOTAL", fontWeight = FontWeight.ExtraBold)
-                    val total = transactions.sumOf { if (it.type == TransactionType.EARN) it.amount else -it.amount }
-                    Text(
-                        if (total >= 0) "+$total" else "$total",
-                        fontWeight = FontWeight.ExtraBold,
-                        color = if (total >= 0) Color(0xFF4CAF50) else Color.Red
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            Button(onClick = onDismiss) {
-                Text("Cerrar")
-            }
-        }
-    )
-}
-
-@Composable
-fun DailyAmountDialog(onDismiss: () -> Unit, onConfirm: (Int) -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Misión Diaria") },
-        text = { Text("Selecciona la recompensa de la misión:") },
-        confirmButton = {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { onConfirm(100) }, modifier = Modifier.weight(1f)) {
-                    Text("+100")
-                }
-                Button(onClick = { onConfirm(150) }, modifier = Modifier.weight(1f)) {
-                    Text("+150")
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancelar")
-            }
-        }
-    )
-}
-
-@Composable
-fun AddExternalDialog(onDismiss: () -> Unit, onConfirm: (Int, String) -> Unit) {
-    var amount by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Añadir Pavos Externos") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = {
-                        if (it.all { char -> char.isDigit() }) {
-                            amount = it
-                        }
-                    },
-                    label = { Text("Cantidad") },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                )
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text("Fuente (Pase, Pack, etc.)") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            Button(onClick = { onConfirm(amount.toIntOrNull() ?: 0, description) }) {
-                Text("Añadir")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancelar")
-            }
-        }
-    )
+fun RenameAccountDialog(initialName: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var name by remember { mutableStateOf(initialName) }
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("RENOMBRAR", fontWeight = FontWeight.Black) },
+        text = { OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Nombre") }, modifier = Modifier.fillMaxWidth()) },
+        confirmButton = { Button(onClick = { onConfirm(name) }) { Text("OK") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("NO") } })
 }

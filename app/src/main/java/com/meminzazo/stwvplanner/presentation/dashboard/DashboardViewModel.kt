@@ -12,17 +12,13 @@ import com.meminzazo.stwvplanner.domain.repository.VBucksRepository
 import com.meminzazo.stwvplanner.domain.usecase.AddAccountUseCase
 import com.meminzazo.stwvplanner.domain.usecase.AddTransactionUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * ViewModel central para la gestión de cuentas y sincronización en la nube.
+ */
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     private val repository: VBucksRepository,
@@ -32,9 +28,11 @@ class DashboardViewModel @Inject constructor(
     private val addAccountUseCase: AddAccountUseCase
 ) : ViewModel() {
 
+    // Lista de cuentas principales para el Dashboard
     val accounts: StateFlow<List<Account>> = repository.getMainAccounts()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Todas las cuentas (necesario para filtrar dependientes localmente)
     val allAccounts: StateFlow<List<Account>> = repository.getAccounts()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -42,13 +40,20 @@ class DashboardViewModel @Inject constructor(
     val isLoading = _isLoading.asStateFlow()
 
     private var lastActionTime = 0L
-    private val ACTION_COOLDOWN = 15000L // 15 segundos de espera entre acciones de nube
+    private val ACTION_COOLDOWN = 15000L // 15 segundos entre peticiones de nube
 
+    // Eventos de una sola vez (errores o avisos)
+    private val _uiEvent = MutableSharedFlow<UiEvent>()
+    val uiEvent = _uiEvent.asSharedFlow()
+
+    /**
+     * Verifica si se puede realizar una acción de red (Cooldown).
+     */
     private fun isActionAllowed(): Boolean {
         val now = System.currentTimeMillis()
         if (now - lastActionTime < ACTION_COOLDOWN) {
             viewModelScope.launch {
-                _uiEvent.emit(UiEvent.ShowError("Por favor, espera unos segundos antes de volver a intentar"))
+                _uiEvent.emit(UiEvent.ShowError("Por favor, espera unos segundos"))
             }
             return false
         }
@@ -56,15 +61,13 @@ class DashboardViewModel @Inject constructor(
         return true
     }
 
-    private val _uiEvent = MutableSharedFlow<UiEvent>()
-    val uiEvent = _uiEvent.asSharedFlow()
-
     fun onSignOutClick() {
-        viewModelScope.launch {
-            authRepository.signOut()
-        }
+        viewModelScope.launch { authRepository.signOut() }
     }
 
+    /**
+     * Sincronización diferencial (solo lo pendiente).
+     */
     fun onSyncClick() {
         if (!isActionAllowed()) return
         viewModelScope.launch {
@@ -72,16 +75,17 @@ class DashboardViewModel @Inject constructor(
             val user = authRepository.currentUser.first()
             if (user != null) {
                 val result = syncRepository.syncAll(user.id)
-                if (result.isSuccess) {
-                    _uiEvent.emit(UiEvent.ShowError("Sincronización completada"))
-                } else {
-                    _uiEvent.emit(UiEvent.ShowError("Error al sincronizar: ${result.exceptionOrNull()?.message}"))
-                }
+                val message = if (result.isSuccess) "Sincronización completada" 
+                              else "Error: ${result.exceptionOrNull()?.message}"
+                _uiEvent.emit(UiEvent.ShowError(message))
             }
             _isLoading.value = false
         }
     }
 
+    /**
+     * Respaldo completo de la DB actual.
+     */
     fun onBackupClick() {
         if (!isActionAllowed()) return
         viewModelScope.launch {
@@ -89,16 +93,15 @@ class DashboardViewModel @Inject constructor(
             val user = authRepository.currentUser.first()
             if (user != null) {
                 val result = syncRepository.backupFullDatabase(user.id)
-                if (result.isSuccess) {
-                    _uiEvent.emit(UiEvent.ShowError("Respaldo total guardado en la nube"))
-                } else {
-                    _uiEvent.emit(UiEvent.ShowError("Error al respaldar: ${result.exceptionOrNull()?.message}"))
-                }
+                _uiEvent.emit(UiEvent.ShowError(if (result.isSuccess) "Respaldo total guardado" else "Error al respaldar"))
             }
             _isLoading.value = false
         }
     }
 
+    /**
+     * Restauración total (borra local y pone lo de la nube).
+     */
     fun onRestoreClick() {
         if (!isActionAllowed()) return
         viewModelScope.launch {
@@ -106,16 +109,15 @@ class DashboardViewModel @Inject constructor(
             val user = authRepository.currentUser.first()
             if (user != null) {
                 val result = syncRepository.restoreFullDatabase(user.id)
-                if (result.isSuccess) {
-                    _uiEvent.emit(UiEvent.ShowError("Restauración completada con éxito"))
-                } else {
-                    _uiEvent.emit(UiEvent.ShowError("Error al restaurar: ${result.exceptionOrNull()?.message}"))
-                }
+                _uiEvent.emit(UiEvent.ShowError(if (result.isSuccess) "Restauración completada" else "Error al restaurar"))
             }
             _isLoading.value = false
         }
     }
 
+    /**
+     * Genera un código de 6 dígitos para que un amigo descargue los datos.
+     */
     fun onGenerateTransferCode() {
         if (!isActionAllowed()) return
         viewModelScope.launch {
@@ -126,27 +128,23 @@ class DashboardViewModel @Inject constructor(
                 if (result.isSuccess) {
                     _uiEvent.emit(UiEvent.ShowTransferCode(result.getOrNull() ?: ""))
                 } else {
-                    _uiEvent.emit(UiEvent.ShowError("Error al generar código: ${result.exceptionOrNull()?.message}"))
+                    _uiEvent.emit(UiEvent.ShowError("Error al generar código"))
                 }
             }
             _isLoading.value = false
         }
     }
 
+    /**
+     * Importa datos desde un código de transferencia de un amigo.
+     */
     fun onImportWithCode(code: String) {
         if (!isActionAllowed()) return
         viewModelScope.launch {
-            if (code.length != 6) {
-                _uiEvent.emit(UiEvent.ShowError("El código debe ser de 6 dígitos"))
-                return@launch
-            }
+            if (code.length != 6) return@launch
             _isLoading.value = true
             val result = syncRepository.restoreFromTransferCode(code)
-            if (result.isSuccess) {
-                _uiEvent.emit(UiEvent.ShowError("Registros importados con éxito"))
-            } else {
-                _uiEvent.emit(UiEvent.ShowError("Error: ${result.exceptionOrNull()?.message}"))
-            }
+            _uiEvent.emit(UiEvent.ShowError(if (result.isSuccess) "Registros importados con éxito" else "Código inválido o expirado"))
             _isLoading.value = false
         }
     }
@@ -178,10 +176,7 @@ class DashboardViewModel @Inject constructor(
                 description = "Misión Diaria",
                 date = System.currentTimeMillis()
             )
-            val result = addTransactionUseCase(transaction)
-            result.onFailure {
-                _uiEvent.emit(UiEvent.ShowError(it.message ?: "Error desconocido"))
-            }
+            addTransactionUseCase(transaction)
         }
     }
 
@@ -200,26 +195,7 @@ class DashboardViewModel @Inject constructor(
     }
 
     fun onDeleteAccountClick(accountId: Long) {
-        viewModelScope.launch {
-            repository.deleteAccount(accountId)
-        }
-    }
-
-    fun onImportFromQR(json: String) {
-        viewModelScope.launch {
-            val payload = com.meminzazo.stwvplanner.presentation.common.QRSharing.parseQRCode(json)
-            if (payload != null) {
-                // Insertar cuenta (sin ID para que genere uno nuevo local)
-                val newAccountId = repository.insertAccount(payload.account.copy(id = 0))
-                // Insertar transacciones vinculadas
-                payload.transactions.forEach { tx ->
-                    repository.insertTransaction(tx.copy(id = 0, accountId = newAccountId))
-                }
-                _uiEvent.emit(UiEvent.ShowError("Cuenta importada: ${payload.account.name}"))
-            } else {
-                _uiEvent.emit(UiEvent.ShowError("Código QR inválido"))
-            }
-        }
+        viewModelScope.launch { repository.deleteAccount(accountId) }
     }
 
     fun onManualEntryClick(
@@ -246,11 +222,7 @@ class DashboardViewModel @Inject constructor(
                 receiverAccountId = receiverId,
                 recipientAccountName = receiverName
             )
-            try {
-                repository.insertTransaction(transaction)
-            } catch (e: Exception) {
-                _uiEvent.emit(UiEvent.ShowError(e.message ?: "Error al guardar el registro"))
-            }
+            repository.insertTransaction(transaction)
         }
     }
 

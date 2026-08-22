@@ -33,10 +33,15 @@ import com.meminzazo.stwvplanner.domain.model.VBucksSource
 import com.meminzazo.stwvplanner.presentation.common.ManualEntryDialog
 import java.text.SimpleDateFormat
 import java.util.*
+import com.meminzazo.stwvplanner.presentation.theme.*
 
-private val COL_DATE = 68.dp
-private val COL_NUM = 66.dp
+private val COL_DATE = 80.dp
+private val COL_NUM = 70.dp
 
+/**
+ * Pantalla de Historial Detallado.
+ * Muestra una tabla con todos los días del mes (1-31) y las transacciones asociadas.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
@@ -47,6 +52,7 @@ fun HistoryScreen(
     var showManualEntryDialog by remember { mutableStateOf(false) }
     var transactionToEdit by remember { mutableStateOf<Transaction?>(null) }
 
+    // Diálogo para agregar o editar registros manualmente
     if (showManualEntryDialog || transactionToEdit != null) {
         ManualEntryDialog(
             dependents = state.dependents,
@@ -78,7 +84,7 @@ fun HistoryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (state.accountName.isNotBlank()) state.accountName else "Historial") },
+                title = { Text(state.accountName.uppercase(), fontWeight = FontWeight.Black) },
                 navigationIcon = {
                     IconButton(onClick = onPopBackStack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás")
@@ -87,18 +93,24 @@ fun HistoryScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showManualEntryDialog = true }) {
-                Icon(Icons.Default.Add, contentDescription = "Añadir Registro")
+            FloatingActionButton(
+                onClick = { showManualEntryDialog = true },
+                containerColor = FortAccent,
+                contentColor = Color.Black
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Añadir")
             }
         }
     ) { paddingValues ->
         Column(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
+            // Selector de Mes/Año
             MonthSelector(
                 selectedMonth = state.selectedMonthName,
                 onPreviousMonth = { viewModel.onMonthChange(-1) },
                 onNextMonth = { viewModel.onMonthChange(1) }
             )
 
+            // Tabla principal según el tipo de cuenta
             if (state.isDependent) {
                 DependentLedger(
                     state = state, 
@@ -125,32 +137,126 @@ fun MonthSelector(
     onNextMonth: () -> Unit
 ) {
     Surface(
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 2.dp,
-        shadowElevation = 1.dp
+        color = StwCardSurface,
+        tonalElevation = 4.dp
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
+                .padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             IconButton(onClick = onPreviousMonth) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Mes Anterior")
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Anterior", tint = FortAccent)
             }
             Text(
-                text = selectedMonth,
+                text = selectedMonth.uppercase(),
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
+                fontWeight = FontWeight.Black,
+                color = VBucksGold
             )
             IconButton(onClick = onNextMonth) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Mes Siguiente")
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Siguiente", tint = FortAccent)
             }
         }
     }
 }
+
+/**
+ * Tabla para cuentas principales: vista tipo Excel con columnas fijas.
+ */
+@Composable
+fun MainAccountTable(
+    state: HistoryState, 
+    modifier: Modifier = Modifier,
+    onEditTransaction: (Transaction) -> Unit,
+    onDeleteTransaction: (Transaction) -> Unit
+) {
+    val scrollState = rememberScrollState()
+    val verticalScrollState = rememberScrollState()
+    val sdf = remember { SimpleDateFormat("dd/MM/yy", Locale.getDefault()) }
+    val dependentIds = remember(state.dependents) { state.dependents.map { it.id }.toSet() }
+    
+    // Agrupa transacciones por día, rellenando los días vacíos del mes
+    val dayRows = remember(state.transactions, dependentIds, state.selectedMonth, state.selectedYear) {
+        groupTransactionsByDay(state.transactions, dependentIds, state.selectedMonth, state.selectedYear)
+    }
+    
+    var selectedDay by remember { mutableStateOf<DayRow?>(null) }
+
+    selectedDay?.let { day ->
+        DayDetailDialog(
+            day = day, 
+            dependents = state.dependents, 
+            onDismiss = { selectedDay = null },
+            onEditTransaction = onEditTransaction,
+            onDeleteTransaction = onDeleteTransaction
+        )
+    }
+
+    Column(modifier = modifier.verticalScroll(verticalScrollState)) {
+        Column(modifier = Modifier.horizontalScroll(scrollState)) {
+            // Encabezado de Tabla
+            Row(
+                modifier = Modifier.background(FortDarkBlue).padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                HeaderCell("FECHA", COL_DATE)
+                HeaderCell("DIARIA", COL_NUM)
+                HeaderCell("ALERTA", COL_NUM)
+                HeaderCell("EXTERNO", COL_NUM)
+                state.dependents.forEach { dep -> HeaderCell(dep.name.uppercase().take(8), COL_NUM) }
+                HeaderCell("OTROS", COL_NUM)
+            }
+            HorizontalDivider(color = FortAccent.copy(alpha = 0.5f))
+
+            // Filas de Datos (Días)
+            dayRows.forEach { row ->
+                Row(
+                    modifier = Modifier
+                        .clickable { if (row.transactions.isNotEmpty()) selectedDay = row }
+                        .padding(vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Cell(sdf.format(Date(row.dateMillis)), COL_DATE, color = VBucksSilver)
+                    Cell(if (row.daily > 0) "${row.daily}" else "-", COL_NUM, color = if (row.daily > 0) EarnGreen else Color.Gray)
+                    Cell(if (row.alert > 0) "${row.alert}" else "-", COL_NUM, color = if (row.alert > 0) AlertBlue else Color.Gray)
+                    Cell(if (row.external > 0) "${row.external}" else "-", COL_NUM, color = if (row.external > 0) FortPurple else Color.Gray)
+                    state.dependents.forEach { dep ->
+                        val amt = row.dependentAmounts[dep.id] ?: 0
+                        Cell(if (amt > 0) "-$amt" else "-", COL_NUM, color = if (amt > 0) SpendRed else Color.Gray)
+                    }
+                    val othersText = when {
+                        row.others > 0 -> "+${row.others}"
+                        row.others < 0 -> "${row.others}"
+                        else -> "-"
+                    }
+                    Cell(othersText, COL_NUM, color = if (row.others < 0) SpendRed else if (row.others > 0) EarnGreen else Color.Gray)
+                }
+                HorizontalDivider(thickness = 0.5.dp, color = Color.Gray.copy(alpha = 0.2f))
+            }
+
+            // Fila de TOTALES
+            Row(
+                modifier = Modifier.background(StwCardSurface).padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Cell("TOTAL", COL_DATE, bold = true, color = VBucksGold)
+                Cell("${state.totalDaily}", COL_NUM, bold = true, color = EarnGreen)
+                Cell("${state.totalAlert}", COL_NUM, bold = true, color = AlertBlue)
+                Cell("${state.totalExternal}", COL_NUM, bold = true, color = FortPurple)
+                state.dependents.forEach { dep ->
+                    val total = state.totalsByDependent[dep.id] ?: 0
+                    Cell(if (total > 0) "-$total" else "-", COL_NUM, bold = true, color = SpendRed)
+                }
+                Cell("${state.totalOthers}", COL_NUM, bold = true, color = if (state.totalOthers < 0) SpendRed else EarnGreen)
+            }
+        }
+    }
+}
+
+// ... Funciones auxiliares de agrupamiento ...
 
 private data class DayRow(
     val dateMillis: Long,
@@ -213,100 +319,6 @@ private fun groupTransactionsByDay(
     return result.sortedByDescending { it.dateMillis }
 }
 
-/**
- * Vista para cuentas principales: una fila POR DÍA (sumando todo lo ocurrido ese día),
- * una columna por cada dependiente para ver a quién se le dio cada regalo.
- * La tabla completa se desliza horizontalmente si hay muchos dependientes.
- */
-@Composable
-fun MainAccountTable(
-    state: HistoryState, 
-    modifier: Modifier = Modifier,
-    onEditTransaction: (Transaction) -> Unit,
-    onDeleteTransaction: (Transaction) -> Unit
-) {
-    val scrollState = rememberScrollState()
-    val verticalScrollState = rememberScrollState()
-    val sdf = remember { SimpleDateFormat("dd/MM/yy", Locale.getDefault()) }
-    val dependentIds = remember(state.dependents) { state.dependents.map { it.id }.toSet() }
-    val dayRows = remember(state.transactions, dependentIds, state.selectedMonth, state.selectedYear) {
-        groupTransactionsByDay(state.transactions, dependentIds, state.selectedMonth, state.selectedYear)
-    }
-    var selectedDay by remember { mutableStateOf<DayRow?>(null) }
-
-    selectedDay?.let { day ->
-        DayDetailDialog(
-            day = day, 
-            dependents = state.dependents, 
-            onDismiss = { selectedDay = null },
-            onEditTransaction = onEditTransaction,
-            onDeleteTransaction = onDeleteTransaction
-        )
-    }
-
-    Column(modifier = modifier.verticalScroll(verticalScrollState)) {
-        Column(modifier = Modifier.horizontalScroll(scrollState)) {
-            Row(
-                modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant).padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                HeaderCell("Fecha", COL_DATE)
-                HeaderCell("Diaria", COL_NUM)
-                HeaderCell("Alerta", COL_NUM)
-                HeaderCell("Externo", COL_NUM)
-                state.dependents.forEach { dep -> HeaderCell(dep.name.take(10), COL_NUM) }
-                HeaderCell("Otros", COL_NUM)
-            }
-            HorizontalDivider()
-
-            dayRows.forEach { row ->
-                Row(
-                    modifier = Modifier
-                        .clickable { selectedDay = row }
-                        .padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Cell(sdf.format(Date(row.dateMillis)), COL_DATE)
-                    Cell(if (row.daily > 0) "${row.daily}" else "-", COL_NUM, color = if (row.daily > 0) Color(0xFF4CAF50) else Color.Gray)
-                    Cell(if (row.alert > 0) "${row.alert}" else "-", COL_NUM, color = if (row.alert > 0) Color(0xFF2196F3) else Color.Gray)
-                    Cell(if (row.external > 0) "${row.external}" else "-", COL_NUM, color = if (row.external > 0) Color(0xFFFF9800) else Color.Gray)
-                    state.dependents.forEach { dep ->
-                        val amt = row.dependentAmounts[dep.id] ?: 0
-                        Cell(if (amt > 0) "-$amt" else "-", COL_NUM, color = if (amt > 0) Color.Red else Color.Gray)
-                    }
-                    val othersText = when {
-                        row.others > 0 -> "+${row.others}"
-                        row.others < 0 -> "${row.others}"
-                        else -> "-"
-                    }
-                    Cell(othersText, COL_NUM, color = if (row.others < 0) Color.Red else Color.Unspecified)
-                }
-                HorizontalDivider(thickness = 0.5.dp, color = Color.LightGray)
-            }
-
-            HorizontalDivider(thickness = 2.dp, color = MaterialTheme.colorScheme.primary)
-            Row(
-                modifier = Modifier.background(MaterialTheme.colorScheme.primaryContainer).padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Cell("TOTAL", COL_DATE, bold = true)
-                Cell("${state.totalDaily}", COL_NUM, bold = true)
-                Cell("${state.totalAlert}", COL_NUM, bold = true)
-                Cell("${state.totalExternal}", COL_NUM, bold = true)
-                state.dependents.forEach { dep ->
-                    val total = state.totalsByDependent[dep.id] ?: 0
-                    Cell(if (total > 0) "-$total" else "-", COL_NUM, bold = true, color = Color.Red)
-                }
-                Cell("${state.totalOthers}", COL_NUM, bold = true, color = if (state.totalOthers < 0) Color.Red else Color.Unspecified)
-            }
-        }
-    }
-}
-
-/**
- * Detalle emergente de un día: lista transacción por transacción,
- * tal como pediste, en vez de amontonarlas en la tabla principal.
- */
 @Composable
 private fun DayDetailDialog(
     day: DayRow, 
@@ -315,16 +327,16 @@ private fun DayDetailDialog(
     onEditTransaction: (Transaction) -> Unit,
     onDeleteTransaction: (Transaction) -> Unit
 ) {
-    val headerFmt = remember { SimpleDateFormat("EEEE d 'de' MMMM", Locale("es", "ES")) }
+    val headerFmt = remember { SimpleDateFormat("EEEE d 'DE' MMMM", Locale("es", "ES")) }
     val dependentNames = remember(dependents) { dependents.associate { it.id to it.name } }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text(headerFmt.format(Date(day.dateMillis)).replaceFirstChar { it.uppercase() })
+            Text(headerFmt.format(Date(day.dateMillis)).uppercase(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
         },
         text = {
-            Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+            Column(Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())) {
                 day.transactions.forEach { tx ->
                     val label = when {
                         tx.source == VBucksSource.DAILY -> "Misión Diaria"
@@ -340,78 +352,39 @@ private fun DayDetailDialog(
                     
                     Column {
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(label, fontSize = 13.sp)
+                                Text(label.uppercase(), fontSize = 12.sp, color = VBucksSilver)
                                 Text(
                                     if (signed >= 0) "+$signed" else "$signed",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (signed >= 0) Color(0xFF4CAF50) else Color.Red
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = if (signed >= 0) EarnGreen else SpendRed
                                 )
                             }
                             IconButton(onClick = { onEditTransaction(tx); onDismiss() }) {
-                                Icon(Icons.Default.Edit, contentDescription = "Editar", modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.Edit, contentDescription = "Editar", tint = FortAccent, modifier = Modifier.size(20.dp))
                             }
                             IconButton(onClick = { onDeleteTransaction(tx); onDismiss() }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = Color.Red, modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = SpendRed, modifier = Modifier.size(20.dp))
                             }
                         }
-                        HorizontalDivider(thickness = 0.5.dp, color = Color.LightGray)
+                        HorizontalDivider(thickness = 0.5.dp, color = Color.Gray.copy(alpha = 0.2f))
                     }
-                }
-                if (day.transactions.isEmpty()) {
-                    Text("Sin movimientos.", fontSize = 12.sp, color = Color.Gray)
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Cerrar") }
+            TextButton(onClick = onDismiss) { Text("CERRAR") }
         }
     )
 }
 
 /**
- * Vista para cuentas dependientes: bitácora simple de lo recibido (los
- * dependientes no regalan nada, solo reciben — el "balance" comparativo entre
- * hermanos vive en la lista de Cuentas Dependientes del padre, no aquí).
- * Agrupado por día, con detalle emergente al tocar.
+ * Vista simplificada para cuentas dependientes.
  */
-private fun dependentBalanceSigned(tx: Transaction): Int =
-    if (tx.type == TransactionType.SPEND) -tx.amount else tx.amount
-
-private fun dependentBalanceColor(amount: Int): Color = when {
-    amount > 0 -> Color(0xFF4CAF50)
-    amount < 0 -> Color.Red
-    else -> Color.Unspecified
-}
-
-private data class DependentDayRow(
-    val dateMillis: Long,
-    val netAmount: Int,
-    val runningBalance: Int,
-    val transactions: List<Transaction>
-)
-
-private fun groupDependentTransactionsByDay(transactions: List<Transaction>): List<DependentDayRow> {
-    val dayKeyFmt = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
-    val chronoGroups = transactions
-        .sortedBy { it.date }
-        .groupBy { dayKeyFmt.format(Date(it.date)) }
-        .entries
-        .sortedBy { it.value.first().date }
-
-    var running = 0
-    val rows = chronoGroups.map { (_, txsOfDay) ->
-        val net = txsOfDay.sumOf { dependentBalanceSigned(it) }
-        running += net
-        DependentDayRow(txsOfDay.first().date, net, running, txsOfDay)
-    }
-    return rows.asReversed()
-}
-
 @Composable
 fun DependentLedger(
     state: HistoryState, 
@@ -434,104 +407,82 @@ fun DependentLedger(
 
     Column(modifier = modifier) {
         Row(
-            modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant).padding(8.dp)
+            modifier = Modifier.fillMaxWidth().background(FortDarkBlue).padding(12.dp)
         ) {
-            Text("Fecha", Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            Text("Del día", Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 12.sp, textAlign = TextAlign.End)
-            Text("Recibido", Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 12.sp, textAlign = TextAlign.End)
+            Text("FECHA", Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.White)
+            Text("DEL DÍA", Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 12.sp, textAlign = TextAlign.End, color = Color.White)
+            Text("RECIBIDO", Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 12.sp, textAlign = TextAlign.End, color = Color.White)
         }
-        HorizontalDivider()
+        HorizontalDivider(color = FortAccent)
         LazyColumn(modifier = Modifier.weight(1f)) {
             items(dayRows) { row ->
                 Row(
-                    modifier = Modifier.fillMaxWidth().clickable { selectedDay = row }.padding(8.dp)
+                    modifier = Modifier.fillMaxWidth().clickable { selectedDay = row }.padding(12.dp)
                 ) {
-                    Text(sdf.format(Date(row.dateMillis)), Modifier.weight(1f), fontSize = 12.sp)
+                    Text(sdf.format(Date(row.dateMillis)), Modifier.weight(1f), fontSize = 12.sp, color = VBucksSilver)
                     Text(
                         if (row.netAmount >= 0) "+${row.netAmount}" else "${row.netAmount}",
                         Modifier.weight(1f), fontSize = 12.sp, textAlign = TextAlign.End,
-                        color = dependentBalanceColor(row.netAmount)
+                        color = if (row.netAmount >= 0) EarnGreen else SpendRed
                     )
                     Text(
                         "${row.runningBalance}",
-                        Modifier.weight(1f), fontSize = 12.sp, textAlign = TextAlign.End, fontWeight = FontWeight.Bold,
-                        color = dependentBalanceColor(row.runningBalance)
+                        Modifier.weight(1f), fontSize = 12.sp, textAlign = TextAlign.End, fontWeight = FontWeight.Black,
+                        color = VBucksGold
                     )
                 }
-                HorizontalDivider(thickness = 0.5.dp, color = Color.LightGray)
-            }
-            if (dayRows.isEmpty()) {
-                item { Text("Sin movimientos todavía.", Modifier.padding(16.dp), fontSize = 12.sp, color = Color.Gray) }
+                HorizontalDivider(thickness = 0.5.dp, color = Color.Gray.copy(alpha = 0.2f))
             }
         }
     }
 }
 
-@Composable
-private fun DependentDayDetailDialog(
-    day: DependentDayRow, 
-    onDismiss: () -> Unit,
-    onEditTransaction: (Transaction) -> Unit,
-    onDeleteTransaction: (Transaction) -> Unit
-) {
-    val headerFmt = remember { SimpleDateFormat("EEEE d 'de' MMMM", Locale("es", "ES")) }
+// ... Resto de componentes internos con estilos actualizados ...
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(headerFmt.format(Date(day.dateMillis)).replaceFirstChar { it.uppercase() })
-        },
+private data class DependentDayRow(val dateMillis: Long, val netAmount: Int, val runningBalance: Int, val transactions: List<Transaction>)
+
+private fun groupDependentTransactionsByDay(transactions: List<Transaction>): List<DependentDayRow> {
+    val dayKeyFmt = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
+    val chronoGroups = transactions.sortedBy { it.date }.groupBy { dayKeyFmt.format(Date(it.date)) }.entries.sortedBy { it.value.first().date }
+    var running = 0
+    val rows = chronoGroups.map { (_, txsOfDay) ->
+        val net = txsOfDay.sumOf { if (it.type == TransactionType.SPEND) -it.amount else it.amount }
+        running += net
+        DependentDayRow(txsOfDay.first().date, net, running, txsOfDay)
+    }
+    return rows.asReversed()
+}
+
+@Composable
+private fun DependentDayDetailDialog(day: DependentDayRow, onDismiss: () -> Unit, onEditTransaction: (Transaction) -> Unit, onDeleteTransaction: (Transaction) -> Unit) {
+    val headerFmt = remember { SimpleDateFormat("EEEE d 'DE' MMMM", Locale("es", "ES")) }
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(headerFmt.format(Date(day.dateMillis)).uppercase(), fontWeight = FontWeight.Black) },
         text = {
-            Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+            Column(Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())) {
                 day.transactions.forEach { tx ->
-                    val itemLabel = tx.itemName?.takeIf { it.isNotBlank() } ?: tx.description.ifBlank { "Regalo" }
-                    val label = if (tx.type == TransactionType.EARN) "Recibido: $itemLabel" else "Enviado: $itemLabel"
-                    val signed = dependentBalanceSigned(tx)
-                    
+                    val signed = if (tx.type == TransactionType.SPEND) -tx.amount else tx.amount
                     Column {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(label, fontSize = 13.sp)
-                                Text(
-                                    if (signed >= 0) "+$signed" else "$signed",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = dependentBalanceColor(signed)
-                                )
+                                Text(tx.description.uppercase(), fontSize = 12.sp, color = VBucksSilver)
+                                Text(if (signed >= 0) "+$signed" else "$signed", fontSize = 16.sp, fontWeight = FontWeight.Black, color = if (signed >= 0) EarnGreen else SpendRed)
                             }
-                            IconButton(onClick = { onEditTransaction(tx); onDismiss() }) {
-                                Icon(Icons.Default.Edit, contentDescription = "Editar", modifier = Modifier.size(20.dp))
-                            }
-                            IconButton(onClick = { onDeleteTransaction(tx); onDismiss() }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = Color.Red, modifier = Modifier.size(20.dp))
-                            }
+                            IconButton(onClick = { onEditTransaction(tx); onDismiss() }) { Icon(Icons.Default.Edit, contentDescription = null, tint = FortAccent) }
+                            IconButton(onClick = { onDeleteTransaction(tx); onDismiss() }) { Icon(Icons.Default.Delete, contentDescription = null, tint = SpendRed) }
                         }
-                        HorizontalDivider(thickness = 0.5.dp, color = Color.LightGray)
+                        HorizontalDivider(thickness = 0.5.dp, color = Color.Gray.copy(alpha = 0.2f))
                     }
                 }
-                if (day.transactions.isEmpty()) {
-                    Text("Sin movimientos.", fontSize = 12.sp, color = Color.Gray)
-                }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Cerrar") }
-        }
-    )
+        }, confirmButton = { TextButton(onClick = onDismiss) { Text("CERRAR") } })
 }
 
 @Composable
 private fun HeaderCell(text: String, width: Dp) {
-    Text(text, Modifier.width(width), fontWeight = FontWeight.Bold, fontSize = 12.sp, textAlign = TextAlign.Center)
+    Text(text, Modifier.width(width), fontWeight = FontWeight.Black, fontSize = 10.sp, textAlign = TextAlign.Center, color = Color.White)
 }
 
 @Composable
 private fun Cell(text: String, width: Dp, bold: Boolean = false, color: Color = Color.Unspecified) {
-    Text(
-        text, Modifier.width(width), fontSize = 12.sp, textAlign = TextAlign.Center,
-        fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal, color = color
-    )
+    Text(text, Modifier.width(width), fontSize = 12.sp, textAlign = TextAlign.Center, fontWeight = if (bold) FontWeight.Black else FontWeight.Normal, color = color)
 }

@@ -1,5 +1,6 @@
 package com.meminzazo.stwvplanner.presentation.dashboard
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -14,6 +15,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -22,12 +24,15 @@ import com.meminzazo.stwvplanner.domain.model.Account
 import com.meminzazo.stwvplanner.domain.model.TransactionType
 import com.meminzazo.stwvplanner.domain.model.VBucksSource
 import com.meminzazo.stwvplanner.presentation.common.ManualEntryDialog
+import com.meminzazo.stwvplanner.presentation.theme.*
 
+/**
+ * Pantalla de inicio con la lista de cuentas principales.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     viewModel: DashboardViewModel = hiltViewModel(),
-    onNavigateToExpenses: (Long) -> Unit,
     snackbarHostState: SnackbarHostState
 ) {
     val accounts by viewModel.accounts.collectAsState()
@@ -41,7 +46,7 @@ fun DashboardScreen(
                 is DashboardViewModel.UiEvent.ShowError -> {
                     snackbarHostState.showSnackbar(event.message)
                 }
-                else -> { /* Ignore other events */ }
+                else -> { /* Otros eventos */ }
             }
         }
     }
@@ -59,28 +64,28 @@ fun DashboardScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("STW V Planner", fontWeight = FontWeight.Bold) },
+                title = { Text("MIS CUENTAS", fontWeight = FontWeight.Black) },
                 actions = {
                     if (isLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp).padding(end = 12.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp).padding(end = 12.dp), strokeWidth = 2.dp)
                     } else {
                         IconButton(onClick = { viewModel.onSyncClick() }) {
-                            Icon(Icons.Default.CloudSync, contentDescription = "Sincronizar ahora")
+                            Icon(Icons.Default.CloudSync, contentDescription = "Sincronizar", tint = FortAccent)
                         }
                     }
                     IconButton(onClick = { viewModel.onSignOutClick() }) {
-                        Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Cerrar Sesión")
+                        Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Salir", tint = SpendRed)
                     }
                 }
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAddAccountDialog = true }) {
-                Icon(Icons.Default.Add, contentDescription = "Añadir Cuenta")
+            FloatingActionButton(
+                onClick = { showAddAccountDialog = true },
+                containerColor = FortAccent,
+                contentColor = Color.Black
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Añadir")
             }
         }
     ) { paddingValues ->
@@ -92,16 +97,12 @@ fun DashboardScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
-                Text(
-                    text = "Tus Cuentas",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
-                )
+                Text("CUENTAS ACTIVAS", style = MaterialTheme.typography.labelLarge, color = FortAccent)
             }
 
             if (accounts.isEmpty()) {
                 item {
-                    Text("No hay cuentas registradas. Crea una para empezar.")
+                    Text("No hay cuentas registradas. Crea una presionando el botón '+'.", color = Color.Gray)
                 }
             }
 
@@ -111,7 +112,6 @@ fun DashboardScreen(
                     dependents = allAccounts.filter { it.parentAccountId == account.id },
                     onAddDaily = { amount -> viewModel.onAddDailyClick(account.id, amount) },
                     onAddAlert = { viewModel.onAddAlertClick(account.id) },
-                    onRecordExpense = { onNavigateToExpenses(account.id) },
                     onDeleteAccount = { viewModel.onDeleteAccountClick(account.id) },
                     onRenameAccount = { newName -> viewModel.onRenameAccountClick(account.id, newName) },
                     onManualEntry = { amount, type, source, desc, date, receiverId, receiverName ->
@@ -124,82 +124,11 @@ fun DashboardScreen(
 }
 
 @Composable
-fun AddAccountDialog(
-    onDismiss: () -> Unit,
-    onConfirm: (String, Boolean) -> Unit
-) {
-    var name by remember { mutableStateOf("") }
-    var isMain by remember { mutableStateOf(false) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Nueva Cuenta") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Nombre de la cuenta") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = isMain, onCheckedChange = { isMain = it })
-                    Text("Es cuenta principal")
-                }
-            }
-        },
-        confirmButton = {
-            Button(onClick = { onConfirm(name, isMain) }) {
-                Text("Crear")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancelar")
-            }
-        }
-    )
-}
-
-@Composable
-fun RenameAccountDialog(
-    initialName: String,
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit
-) {
-    var name by remember { mutableStateOf(initialName) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Renombrar Cuenta") },
-        text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Nombre de la cuenta") },
-                modifier = Modifier.fillMaxWidth()
-            )
-        },
-        confirmButton = {
-            Button(onClick = { onConfirm(name) }, enabled = name.isNotBlank()) {
-                Text("Actualizar")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancelar")
-            }
-        }
-    )
-}
-
-@Composable
 fun AccountCard(
     account: Account,
     dependents: List<Account>,
     onAddDaily: (Int) -> Unit,
     onAddAlert: () -> Unit,
-    onRecordExpense: () -> Unit,
     onDeleteAccount: () -> Unit,
     onRenameAccount: (String) -> Unit,
     onManualEntry: (Int, TransactionType, VBucksSource, String, Long, Long?, String?) -> Unit
@@ -213,23 +142,15 @@ fun AccountCard(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Eliminar Cuenta") },
-            text = { Text("¿Estás seguro de que deseas eliminar esta cuenta? Se perderán todos sus datos.") },
+            title = { Text("ELIMINAR CUENTA", fontWeight = FontWeight.Black) },
+            text = { Text("¿Seguro que quieres borrar '${account.name}'? Todos los datos se perderán.") },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        onDeleteAccount()
-                        showDeleteConfirm = false
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text("Eliminar")
+                TextButton(onClick = { onDeleteAccount(); showDeleteConfirm = false }, colors = ButtonDefaults.textButtonColors(contentColor = SpendRed)) {
+                    Text("ELIMINAR")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) {
-                    Text("Cancelar")
-                }
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("CANCELAR") }
             }
         )
     }
@@ -238,10 +159,7 @@ fun AccountCard(
         RenameAccountDialog(
             initialName = account.name,
             onDismiss = { showRenameDialog = false },
-            onConfirm = { newName ->
-                onRenameAccount(newName)
-                showRenameDialog = false
-            }
+            onConfirm = { newName -> onRenameAccount(newName); showRenameDialog = false }
         )
     }
 
@@ -258,115 +176,105 @@ fun AccountCard(
             onConfirm = { amount, type, source, desc, date, receiverId, receiverName ->
                 onManualEntry(amount, type, source, desc, date, receiverId, receiverName)
                 showManualEntryDialog = false
-                manualEntryInitialType = null
-                manualEntryInitialSource = null
             }
         )
     }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        colors = CardDefaults.cardColors(containerColor = StwCardSurface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.Gray.copy(alpha = 0.2f))
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Column {
                     Text(
-                        text = account.name,
+                        text = account.name.uppercase(),
                         style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.Black,
+                        color = Color.White,
                         modifier = Modifier.clickable { showRenameDialog = true }
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
                     if (account.isMain) {
-                        SuggestionChip(
-                            onClick = { },
-                            label = { Text("Principal") }
-                        )
+                        Text("CUENTA PRINCIPAL", fontSize = 10.sp, color = FortAccent, fontWeight = FontWeight.Bold)
                     }
                 }
                 IconButton(onClick = { showDeleteConfirm = true }) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = "Eliminar",
-                        tint = MaterialTheme.colorScheme.error
-                    )
+                    Icon(Icons.Default.Delete, contentDescription = null, tint = SpendRed.copy(alpha = 0.7f))
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            Text(
-                text = "${account.balance} V-Bucks",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.ExtraBold
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "${account.balance}",
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = VBucksGold,
+                    fontWeight = FontWeight.Black
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("V-BUCKS", style = MaterialTheme.typography.titleMedium, color = VBucksGold)
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Text("Registro Rápido", style = MaterialTheme.typography.labelLarge)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     onClick = { onAddDaily(100) },
                     modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(4.dp)
+                    colors = ButtonDefaults.buttonColors(containerColor = EarnGreen),
+                    shape = MaterialTheme.shapes.small
                 ) {
-                    Text("+100 D", fontSize = 12.sp)
+                    Text("+100 D", fontWeight = FontWeight.Black, fontSize = 12.sp)
                 }
                 Button(
-                    onClick = { onAddDaily(150) },
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(4.dp)
-                ) {
-                    Text("+150 D", fontSize = 12.sp)
-                }
-                OutlinedButton(
                     onClick = { onAddAlert() },
                     modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(4.dp)
+                    colors = ButtonDefaults.buttonColors(containerColor = AlertBlue),
+                    shape = MaterialTheme.shapes.small
                 ) {
-                    Text("+50 A", fontSize = 12.sp)
+                    Text("+50 A", fontWeight = FontWeight.Black, fontSize = 12.sp)
                 }
                 IconButton(
-                    onClick = { 
-                        manualEntryInitialType = null
-                        manualEntryInitialSource = null
-                        showManualEntryDialog = true 
-                    },
-                    modifier = Modifier.size(40.dp)
+                    onClick = { showManualEntryDialog = true },
+                    modifier = Modifier.size(40.dp).background(FortPurple, MaterialTheme.shapes.small)
                 ) {
-                    Icon(
-                        Icons.Default.Edit,
-                        contentDescription = "Manual",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
+                    Icon(Icons.Default.Edit, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                 }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            OutlinedButton(
-                onClick = {
-                    manualEntryInitialType = TransactionType.SPEND
-                    manualEntryInitialSource = VBucksSource.GIFT
-                    showManualEntryDialog = true
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null)
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Registrar Gasto / Regalo")
             }
         }
     }
+}
+
+@Composable
+fun RenameAccountDialog(initialName: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var name by remember { mutableStateOf(initialName) }
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("RENOMBRAR", fontWeight = FontWeight.Black) },
+        text = { OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Nombre") }, modifier = Modifier.fillMaxWidth()) },
+        confirmButton = { Button(onClick = { onConfirm(name) }) { Text("OK") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("NO") } })
+}
+
+@Composable
+fun AddAccountDialog(onDismiss: () -> Unit, onConfirm: (String, Boolean) -> Unit) {
+    var name by remember { mutableStateOf("") }
+    var isMain by remember { mutableStateOf(false) }
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("NUEVA CUENTA", fontWeight = FontWeight.Black) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Nombre") }, modifier = Modifier.fillMaxWidth())
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = isMain, onCheckedChange = { isMain = it })
+                    Text("Es cuenta principal")
+                }
+            }
+        },
+        confirmButton = { Button(onClick = { onConfirm(name, isMain) }) { Text("CREAR") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("CANCELAR") } })
 }
