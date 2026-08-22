@@ -3,17 +3,22 @@ package com.meminzazo.stwvplanner.presentation.expense
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.meminzazo.stwvplanner.domain.model.Account
 import com.meminzazo.stwvplanner.domain.model.ItemType
 import com.meminzazo.stwvplanner.domain.model.Transaction
 import com.meminzazo.stwvplanner.domain.model.TransactionType
 import com.meminzazo.stwvplanner.domain.model.VBucksSource
 import com.meminzazo.stwvplanner.domain.repository.VBucksRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -27,8 +32,24 @@ class AddExpenseViewModel @Inject constructor(
 
     private val accountId: Long = checkNotNull(savedStateHandle["accountId"])
 
-    val otherAccounts = repository.getAccountsByParent(accountId)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    // Cuenta actual, para saber si es dependiente y así poder ofrecer a su
+    // padre como destinatario (antes solo se listaban los hijos, y una
+    // cuenta dependiente nunca tiene hijos → el padre jamás aparecía).
+    private val selfFlow = flow { emit(repository.getAccountById(accountId)) }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val otherAccounts: kotlinx.coroutines.flow.StateFlow<List<Account>> = selfFlow.flatMapLatest { self ->
+        val childrenFlow = repository.getAccountsByParent(accountId)
+        val parentId = self?.parentAccountId
+        if (parentId != null) {
+            val parentFlow = flow { emit(repository.getAccountById(parentId)) }
+            combine(childrenFlow, parentFlow) { children, parent ->
+                if (parent != null) listOf(parent) + children else children
+            }
+        } else {
+            childrenFlow
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val externalRecipients = repository.getExternalRecipients(accountId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -50,8 +71,8 @@ class AddExpenseViewModel @Inject constructor(
 
     private var selectedReceiverId: Long? = null
 
-    fun onRecipientNameChange(value: String) { 
-        _recipientName.value = value 
+    fun onRecipientNameChange(value: String) {
+        _recipientName.value = value
         selectedReceiverId = null
     }
 

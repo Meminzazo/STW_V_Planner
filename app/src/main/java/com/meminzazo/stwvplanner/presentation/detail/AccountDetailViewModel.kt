@@ -56,7 +56,7 @@ class AccountDetailViewModel @Inject constructor(
                 _uiEvent.emit(UiEvent.ShowError("Ya has registrado la misión diaria de hoy"))
                 return@launch
             }
-            
+
             val transaction = Transaction(
                 accountId = accountId,
                 amount = amount,
@@ -143,7 +143,7 @@ class AccountDetailViewModel @Inject constructor(
     val expenseDistribution = repository.getTransactions(accountId)
         .map { transactions ->
             transactions.filter { it.type == TransactionType.SPEND }
-                .groupBy { 
+                .groupBy {
                     it.recipientAccountName ?: it.source.name
                 }
                 .mapValues { it.value.sumOf { t -> t.amount } }
@@ -153,7 +153,7 @@ class AccountDetailViewModel @Inject constructor(
     val expenseDistributionMensual = repository.getTransactionsInRange(accountId, startOfMonth, endOfMonth)
         .map { transactions ->
             transactions.filter { it.type == TransactionType.SPEND }
-                .groupBy { 
+                .groupBy {
                     it.recipientAccountName ?: it.source.name
                 }
                 .mapValues { it.value.sumOf { t -> t.amount } }
@@ -172,19 +172,41 @@ class AccountDetailViewModel @Inject constructor(
     val dependentAccounts = repository.getAccountsByParent(accountId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Balance de reparto equitativo entre TODOS los dependientes de esta cuenta.
+    // Los dependientes nunca regalan nada, solo reciben — así que el balance no
+    // es una relación bilateral con el padre, es una comparación entre hermanos:
+    // ¿qué tan parejo se ha repartido entre todos ellos?
+    //
+    // balance(D) = (total repartido entre todos los dependientes) − N × (recibido por D)
+    //
+    // Ejemplo con 2 dependientes que reciben 3700 y 2500 (total 6200, N=2):
+    //   balance(3700) = 6200 − 2×3700 = -1200
+    //   balance(2500) = 6200 − 2×2500 = +1200
+    // Si todos reciben lo mismo, cada balance da 0. Se generaliza solo a N cuentas.
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val dependentRelations = dependentAccounts.flatMapLatest { accounts ->
         if (accounts.isEmpty()) return@flatMapLatest flowOf(emptyList<DependentRelation>())
-        
-        val flows = accounts.map { account ->
+
+        val perDependentFlows = accounts.map { dep ->
             combine(
-                repository.getBalance(account.id),
-                repository.getBalanceInRange(account.id, startOfMonth, endOfMonth)
-            ) { total, monthly ->
-                DependentRelation(account, total, monthly)
+                repository.getVBucksSentTo(accountId, dep.id),
+                repository.getVBucksSentToInRange(accountId, dep.id, startOfMonth, endOfMonth)
+            ) { total, monthly -> dep to (total to monthly) }
+        }
+
+        combine(perDependentFlows) { entries ->
+            val n = entries.size
+            val totalAll = entries.sumOf { it.second.first }
+            val monthlyAll = entries.sumOf { it.second.second }
+            entries.map { (dep, amounts) ->
+                val (totalReceived, monthlyReceived) = amounts
+                DependentRelation(
+                    account = dep,
+                    totalBalance = totalAll - n * totalReceived,
+                    monthlyBalance = monthlyAll - n * monthlyReceived
+                )
             }
         }
-        combine(flows) { it.toList() }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun onCreateDependentAccount(name: String) {
@@ -192,13 +214,6 @@ class AccountDetailViewModel @Inject constructor(
             if (name.isBlank()) return@launch
             addAccountUseCase(name = name, parentAccountId = accountId)
         }
-    }
-
-    fun getRelationBalance(otherId: Long): Flow<Int> {
-        return combine(
-            repository.getVBucksReceivedFrom(accountId, otherId),
-            repository.getVBucksSentTo(accountId, otherId)
-        ) { received, sent -> received - sent }
     }
 
     sealed class UiEvent {

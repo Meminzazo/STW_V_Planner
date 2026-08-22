@@ -112,7 +112,7 @@ fun AddExpenseScreen(
                 ) {
                     otherAccounts.forEach { account ->
                         DropdownMenuItem(
-                            text = { Text(account.name + " (Dependiente)") },
+                            text = { Text(account.name) },
                             onClick = {
                                 viewModel.onRecipientSelected(account.name, account.id)
                                 expandedRecipient = false
@@ -166,7 +166,7 @@ fun AddExpenseScreen(
                 ) {
                     ItemType.entries.forEach { type ->
                         DropdownMenuItem(
-                            text = { 
+                            text = {
                                 Text(when (type) {
                                     ItemType.SKIN -> "Skin"
                                     ItemType.DANCE -> "Baile"

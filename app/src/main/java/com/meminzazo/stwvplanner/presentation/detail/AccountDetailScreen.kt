@@ -164,7 +164,7 @@ private fun ExpensesPieContent(data: Map<String, Int>) {
 
 @Composable
 fun EarningsDistributionCard(
-    monthly: Map<VBucksSource, Int>, 
+    monthly: Map<VBucksSource, Int>,
     total: Map<VBucksSource, Int>,
     onClick: (Boolean) -> Unit // true = mensual, false = total
 ) {
@@ -180,7 +180,7 @@ fun EarningsDistributionCard(
 
 @Composable
 fun ExpensesDistributionCard(
-    monthly: Map<String, Int>, 
+    monthly: Map<String, Int>,
     total: Map<String, Int>,
     onClick: (Boolean) -> Unit
 ) {
@@ -402,8 +402,12 @@ fun BalanceCard(balance: Int) {
     }
 }
 
-private fun formatSigned(amount: Int): String = if (amount >= 0) "+$amount" else "$amount"
-private fun colorFor(amount: Int): Color = if (amount >= 0) Color(0xFF4CAF50) else Color.Red
+private fun formatSigned(amount: Int): String = if (amount > 0) "+$amount" else "$amount"
+private fun colorFor(amount: Int): Color = when {
+    amount > 0 -> Color(0xFF4CAF50)
+    amount < 0 -> Color.Red
+    else -> Color.Unspecified
+}
 
 @Composable
 fun RelationItem(relation: DependentRelation, onClick: () -> Unit) {
@@ -472,7 +476,7 @@ fun DistributionHistoryDialog(
     onDismiss: () -> Unit
 ) {
     val sdf = remember { SimpleDateFormat("dd/MM/yy", Locale.getDefault()) }
-    
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
@@ -503,10 +507,10 @@ fun DistributionHistoryDialog(
                             val signed = if (tx.type == TransactionType.EARN) "+${tx.amount}" else "-${tx.amount}"
                             val color = if (tx.type == TransactionType.EARN) Color(0xFF4CAF50) else Color.Red
                             Text(
-                                signed, 
-                                Modifier.weight(1f), 
-                                fontSize = 11.sp, 
-                                textAlign = TextAlign.End, 
+                                signed,
+                                Modifier.weight(1f),
+                                fontSize = 11.sp,
+                                textAlign = TextAlign.End,
                                 color = color,
                                 fontWeight = FontWeight.Bold
                             )
@@ -527,8 +531,8 @@ fun DistributionHistoryDialog(
                     Text("TOTAL", fontWeight = FontWeight.ExtraBold)
                     val total = transactions.sumOf { if (it.type == TransactionType.EARN) it.amount else -it.amount }
                     Text(
-                        if (total >= 0) "+$total" else "$total", 
-                        fontWeight = FontWeight.ExtraBold, 
+                        if (total >= 0) "+$total" else "$total",
+                        fontWeight = FontWeight.ExtraBold,
                         color = if (total >= 0) Color(0xFF4CAF50) else Color.Red
                     )
                 }
