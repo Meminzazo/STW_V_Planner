@@ -1,0 +1,21 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 1. Reglas para los datos privados de cada usuario
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // 2. Reglas para los códigos de transferencia (Compartir con amigos)
+    match /transfer_codes/{code} {
+      // Cualquiera que esté logueado puede crear un código o leer uno si se lo saben
+      allow create, read: if request.auth != null;
+      
+      // Opcional: Solo permitir borrar si eres el creador o después de usarlo
+      // Por simplicidad en esta fase, permitimos lectura/escritura si estás logueado
+      allow update, delete: if request.auth != null;
+    }
+  }
+}
