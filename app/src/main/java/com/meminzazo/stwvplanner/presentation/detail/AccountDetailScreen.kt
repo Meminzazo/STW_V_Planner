@@ -12,14 +12,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -31,6 +30,7 @@ import com.meminzazo.stwvplanner.domain.model.Account
 import com.meminzazo.stwvplanner.domain.model.VBucksSource
 import com.meminzazo.stwvplanner.domain.model.TransactionType
 import com.meminzazo.stwvplanner.domain.model.Transaction
+import com.meminzazo.stwvplanner.presentation.common.ManualEntryDialog
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -51,10 +51,6 @@ private val EXPENSES_COLORS = listOf(
     Color(0xFF009688)
 )
 
-/**
- * Card genérica con 2 páginas deslizables: "Mensual" y "Total".
- * El título cambia según la página visible; puntos indicadores abajo.
- */
 @Composable
 fun DistributionPagerCard(
     baseTitle: String,
@@ -166,7 +162,7 @@ private fun ExpensesPieContent(data: Map<String, Int>) {
 fun EarningsDistributionCard(
     monthly: Map<VBucksSource, Int>,
     total: Map<VBucksSource, Int>,
-    onClick: (Boolean) -> Unit // true = mensual, false = total
+    onClick: (Boolean) -> Unit
 ) {
     val pagerState = rememberPagerState(pageCount = { 2 })
     DistributionPagerCard(
@@ -215,9 +211,16 @@ fun AccountDetailScreen(
     val expenseDistributionMensual by viewModel.expenseDistributionMensual.collectAsState()
     val expenseTransactions by viewModel.expenseTransactions.collectAsState()
     val expenseTransactionsMensual by viewModel.expenseTransactionsMensual.collectAsState()
+    val dependentAccounts by viewModel.dependentAccounts.collectAsState()
 
     var showExternalDialog by remember { mutableStateOf(false) }
     var showAddDependentDialog by remember { mutableStateOf(false) }
+    var showManualEntryDialog by remember { mutableStateOf(false) }
+    var showDailyAmountDialog by remember { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf(false) }
+    var accountToRename by remember { mutableStateOf<Account?>(null) }
+    var manualEntryInitialType by remember { mutableStateOf<TransactionType?>(null) }
+    var manualEntryInitialSource by remember { mutableStateOf<VBucksSource?>(null) }
     var distributionToShow by remember { mutableStateOf<Pair<String, List<Transaction>>?>(null) }
 
     LaunchedEffect(Unit) {
@@ -228,11 +231,10 @@ fun AccountDetailScreen(
         }
     }
 
-    val dist = distributionToShow
-    if (dist != null) {
+    if (distributionToShow != null) {
         DistributionHistoryDialog(
-            title = dist.first,
-            transactions = dist.second,
+            title = distributionToShow!!.first,
+            transactions = distributionToShow!!.second,
             onDismiss = { distributionToShow = null }
         )
     }
@@ -257,10 +259,62 @@ fun AccountDetailScreen(
         )
     }
 
+    if (showRenameDialog || accountToRename != null) {
+        val acc = accountToRename ?: account
+        acc?.let { a ->
+            RenameAccountDialog(
+                initialName = a.name,
+                onDismiss = { 
+                    showRenameDialog = false 
+                    accountToRename = null
+                },
+                onConfirm = { newName ->
+                    viewModel.onRenameAccountClick(a.id, newName)
+                    showRenameDialog = false
+                    accountToRename = null
+                }
+            )
+        }
+    }
+
+    if (showManualEntryDialog) {
+        ManualEntryDialog(
+            dependents = dependentAccounts,
+            initialType = manualEntryInitialType,
+            initialSource = manualEntryInitialSource,
+            onDismiss = { 
+                showManualEntryDialog = false 
+                manualEntryInitialType = null
+                manualEntryInitialSource = null
+            },
+            onConfirm = { amount, type, source, desc, date, receiverId, receiverName ->
+                viewModel.onManualEntryClick(amount, type, source, desc, date, receiverId, receiverName)
+                showManualEntryDialog = false
+                manualEntryInitialType = null
+                manualEntryInitialSource = null
+            }
+        )
+    }
+
+    if (showDailyAmountDialog) {
+        DailyAmountDialog(
+            onDismiss = { showDailyAmountDialog = false },
+            onConfirm = { amount ->
+                viewModel.onAddDailyClick(amount)
+                showDailyAmountDialog = false
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(account?.name ?: "Detalle") },
+                title = { 
+                    Text(
+                        text = account?.name ?: "Detalle",
+                        modifier = Modifier.clickable { showRenameDialog = true }
+                    ) 
+                },
                 navigationIcon = {
                     IconButton(onClick = onPopBackStack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás")
@@ -278,6 +332,88 @@ fun AccountDetailScreen(
         ) {
             item {
                 BalanceCard(balance)
+            }
+
+            item {
+                Text("Acciones Rápidas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                if (account?.parentAccountId == null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = { showDailyAmountDialog = true },
+                            modifier = Modifier.weight(1f),
+                            enabled = !isDailyRegistered
+                        ) {
+                            Text("Diaria (Seleccionar)")
+                        }
+                        Button(
+                            onClick = { viewModel.onAddAlertClick() },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Alerta +50")
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { 
+                                manualEntryInitialType = TransactionType.EARN
+                                manualEntryInitialSource = VBucksSource.EXTERNAL
+                                showManualEntryDialog = true 
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Externo (+)")
+                        }
+                        OutlinedButton(
+                            onClick = { 
+                                manualEntryInitialType = TransactionType.SPEND
+                                manualEntryInitialSource = VBucksSource.GIFT
+                                showManualEntryDialog = true 
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Gasto / Regalo")
+                        }
+                    }
+                    Button(
+                        onClick = { 
+                            manualEntryInitialType = null
+                            manualEntryInitialSource = null
+                            showManualEntryDialog = true 
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
+                    ) {
+                        Text("Registro Manual")
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick = { 
+                            manualEntryInitialType = TransactionType.SPEND
+                            manualEntryInitialSource = VBucksSource.GIFT
+                            showManualEntryDialog = true 
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Registrar Gasto de esta cuenta")
+                    }
+                    Button(
+                        onClick = { 
+                            manualEntryInitialType = null
+                            manualEntryInitialSource = null
+                            showManualEntryDialog = true 
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
+                    ) {
+                        Text("Registro Manual")
+                    }
+                }
             }
 
             if (earningsDesglosadas.isNotEmpty() || earningsDesglosadasMensual.isNotEmpty()) {
@@ -303,54 +439,6 @@ fun AccountDetailScreen(
                             distributionToShow = "Egresos (${if (isMonthly) "Mes" else "Total"})" to txs
                         }
                     )
-                }
-            }
-
-            item {
-                Text("Acciones Rápidas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                if (account?.parentAccountId == null) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = { viewModel.onAddDailyClick(100) },
-                            modifier = Modifier.weight(1f),
-                            enabled = !isDailyRegistered
-                        ) {
-                            Text("Diaria +100")
-                        }
-                        Button(
-                            onClick = { viewModel.onAddAlertClick() },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Alerta +50")
-                        }
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = { showExternalDialog = true },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Externo (+)")
-                        }
-                        OutlinedButton(
-                            onClick = { onNavigateToAddExpense(account?.id ?: 0) },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Gasto / Regalo")
-                        }
-                    }
-                } else {
-                    OutlinedButton(
-                        onClick = { onNavigateToAddExpense(account?.id ?: 0) },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Registrar Gasto de esta cuenta")
-                    }
                 }
             }
 
@@ -381,7 +469,8 @@ fun AccountDetailScreen(
                 items(dependentRelations) { relation ->
                     RelationItem(
                         relation = relation,
-                        onClick = { onNavigateToHistory(relation.account.id) }
+                        onClick = { onNavigateToHistory(relation.account.id) },
+                        onEditName = { accountToRename = relation.account }
                     )
                 }
             }
@@ -410,7 +499,7 @@ private fun colorFor(amount: Int): Color = when {
 }
 
 @Composable
-fun RelationItem(relation: DependentRelation, onClick: () -> Unit) {
+fun RelationItem(relation: DependentRelation, onClick: () -> Unit, onEditName: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable { onClick() },
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
@@ -421,13 +510,19 @@ fun RelationItem(relation: DependentRelation, onClick: () -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-                Text(relation.account.name, fontWeight = FontWeight.Medium)
-                Text(
-                    text = "Este mes: ${formatSigned(relation.monthlyBalance)}",
-                    fontSize = 11.sp,
-                    color = colorFor(relation.monthlyBalance)
-                )
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                Column {
+                    Text(relation.account.name, fontWeight = FontWeight.Medium)
+                    Text(
+                        text = "Este mes: ${formatSigned(relation.monthlyBalance)}",
+                        fontSize = 11.sp,
+                        color = colorFor(relation.monthlyBalance)
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                IconButton(onClick = onEditName, modifier = Modifier.size(24.dp)) {
+                    Icon(Icons.Default.Edit, contentDescription = "Renombrar", modifier = Modifier.size(16.dp))
+                }
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text("Total", fontSize = 10.sp, color = Color.Gray)
@@ -439,6 +534,38 @@ fun RelationItem(relation: DependentRelation, onClick: () -> Unit) {
             }
         }
     }
+}
+
+@Composable
+fun RenameAccountDialog(
+    initialName: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var name by remember { mutableStateOf(initialName) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Renombrar Cuenta") },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Nombre de la cuenta") },
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            Button(onClick = { onConfirm(name) }, enabled = name.isNotBlank()) {
+                Text("Actualizar")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar")
+            }
+        }
+    )
 }
 
 @Composable
@@ -539,8 +666,32 @@ fun DistributionHistoryDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
+            Button(onClick = onDismiss) {
                 Text("Cerrar")
+            }
+        }
+    )
+}
+
+@Composable
+fun DailyAmountDialog(onDismiss: () -> Unit, onConfirm: (Int) -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Misión Diaria") },
+        text = { Text("Selecciona la recompensa de la misión:") },
+        confirmButton = {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { onConfirm(100) }, modifier = Modifier.weight(1f)) {
+                    Text("+100")
+                }
+                Button(onClick = { onConfirm(150) }, modifier = Modifier.weight(1f)) {
+                    Text("+150")
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar")
             }
         }
     )

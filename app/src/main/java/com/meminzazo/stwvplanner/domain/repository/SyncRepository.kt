@@ -9,4 +9,14 @@ interface SyncRepository {
     
     suspend fun downloadAccounts(userId: String, since: Long): Result<List<AccountEntity>>
     suspend fun downloadTransactions(userId: String, since: Long): Result<List<TransactionEntity>>
+
+    suspend fun syncAll(userId: String): Result<Unit>
+    
+    // Nuevas funciones de respaldo total
+    suspend fun backupFullDatabase(userId: String): Result<Unit>
+    suspend fun restoreFullDatabase(userId: String): Result<Unit>
+
+    // Funciones para compartir por código
+    suspend fun generateTransferCode(userId: String): Result<String>
+    suspend fun restoreFromTransferCode(code: String): Result<Unit>
 }

@@ -10,10 +10,13 @@ interface VBucksRepository {
     fun getAccounts(): Flow<List<Account>> // Mantenemos para compatibilidad si es necesario, pero filtraremos
     suspend fun getAccountById(id: Long): Account?
     suspend fun insertAccount(account: Account): Long
+    suspend fun updateAccount(account: Account)
     suspend fun deleteAccount(id: Long)
 
     fun getTransactions(accountId: Long? = null): Flow<List<Transaction>>
     suspend fun insertTransaction(transaction: Transaction): Long
+    suspend fun deleteTransaction(transaction: Transaction)
+    suspend fun updateTransaction(transaction: Transaction)
     fun getBalance(accountId: Long): Flow<Int>
     suspend fun countDailyMissionsInDate(accountId: Long, timestamp: Long): Int
 

@@ -17,7 +17,8 @@ fun Account.toEntity(): AccountEntity = AccountEntity(
     id = id,
     name = name,
     isMain = isMain,
-    parentAccountId = parentAccountId
+    parentAccountId = parentAccountId,
+    syncId = syncId
 )
 
 fun TransactionEntity.toDomain(): Transaction = Transaction(

@@ -1,28 +1,27 @@
 package com.meminzazo.stwvplanner.presentation.dashboard
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.meminzazo.stwvplanner.domain.model.Account
+import com.meminzazo.stwvplanner.domain.model.TransactionType
+import com.meminzazo.stwvplanner.domain.model.VBucksSource
+import com.meminzazo.stwvplanner.presentation.common.ManualEntryDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,6 +31,8 @@ fun DashboardScreen(
     snackbarHostState: SnackbarHostState
 ) {
     val accounts by viewModel.accounts.collectAsState()
+    val allAccounts by viewModel.allAccounts.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
     var showAddAccountDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -40,6 +41,7 @@ fun DashboardScreen(
                 is DashboardViewModel.UiEvent.ShowError -> {
                     snackbarHostState.showSnackbar(event.message)
                 }
+                else -> { /* Ignore other events */ }
             }
         }
     }
@@ -56,9 +58,20 @@ fun DashboardScreen(
 
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(
+            TopAppBar(
                 title = { Text("STW V Planner", fontWeight = FontWeight.Bold) },
                 actions = {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp).padding(end = 12.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    } else {
+                        IconButton(onClick = { viewModel.onSyncClick() }) {
+                            Icon(Icons.Default.CloudSync, contentDescription = "Sincronizar ahora")
+                        }
+                    }
                     IconButton(onClick = { viewModel.onSignOutClick() }) {
                         Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Cerrar Sesión")
                     }
@@ -95,10 +108,15 @@ fun DashboardScreen(
             items(accounts) { account ->
                 AccountCard(
                     account = account,
+                    dependents = allAccounts.filter { it.parentAccountId == account.id },
                     onAddDaily = { amount -> viewModel.onAddDailyClick(account.id, amount) },
                     onAddAlert = { viewModel.onAddAlertClick(account.id) },
                     onRecordExpense = { onNavigateToExpenses(account.id) },
-                    onDeleteAccount = { viewModel.onDeleteAccountClick(account.id) }
+                    onDeleteAccount = { viewModel.onDeleteAccountClick(account.id) },
+                    onRenameAccount = { newName -> viewModel.onRenameAccountClick(account.id, newName) },
+                    onManualEntry = { amount, type, source, desc, date, receiverId, receiverName ->
+                        viewModel.onManualEntryClick(account.id, amount, type, source, desc, date, receiverId, receiverName)
+                    }
                 )
             }
         }
@@ -144,14 +162,53 @@ fun AddAccountDialog(
 }
 
 @Composable
+fun RenameAccountDialog(
+    initialName: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var name by remember { mutableStateOf(initialName) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Renombrar Cuenta") },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Nombre de la cuenta") },
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            Button(onClick = { onConfirm(name) }, enabled = name.isNotBlank()) {
+                Text("Actualizar")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar")
+            }
+        }
+    )
+}
+
+@Composable
 fun AccountCard(
     account: Account,
+    dependents: List<Account>,
     onAddDaily: (Int) -> Unit,
     onAddAlert: () -> Unit,
     onRecordExpense: () -> Unit,
-    onDeleteAccount: () -> Unit
+    onDeleteAccount: () -> Unit,
+    onRenameAccount: (String) -> Unit,
+    onManualEntry: (Int, TransactionType, VBucksSource, String, Long, Long?, String?) -> Unit
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf(false) }
+    var showManualEntryDialog by remember { mutableStateOf(false) }
+    var manualEntryInitialType by remember { mutableStateOf<TransactionType?>(null) }
+    var manualEntryInitialSource by remember { mutableStateOf<VBucksSource?>(null) }
 
     if (showDeleteConfirm) {
         AlertDialog(
@@ -177,6 +234,36 @@ fun AccountCard(
         )
     }
 
+    if (showRenameDialog) {
+        RenameAccountDialog(
+            initialName = account.name,
+            onDismiss = { showRenameDialog = false },
+            onConfirm = { newName ->
+                onRenameAccount(newName)
+                showRenameDialog = false
+            }
+        )
+    }
+
+    if (showManualEntryDialog) {
+        ManualEntryDialog(
+            dependents = dependents,
+            initialType = manualEntryInitialType,
+            initialSource = manualEntryInitialSource,
+            onDismiss = { 
+                showManualEntryDialog = false 
+                manualEntryInitialType = null
+                manualEntryInitialSource = null
+            },
+            onConfirm = { amount, type, source, desc, date, receiverId, receiverName ->
+                onManualEntry(amount, type, source, desc, date, receiverId, receiverName)
+                showManualEntryDialog = false
+                manualEntryInitialType = null
+                manualEntryInitialSource = null
+            }
+        )
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
@@ -193,7 +280,8 @@ fun AccountCard(
                     Text(
                         text = account.name,
                         style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable { showRenameDialog = true }
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     if (account.isMain) {
@@ -249,12 +337,30 @@ fun AccountCard(
                 ) {
                     Text("+50 A", fontSize = 12.sp)
                 }
+                IconButton(
+                    onClick = { 
+                        manualEntryInitialType = null
+                        manualEntryInitialSource = null
+                        showManualEntryDialog = true 
+                    },
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Edit,
+                        contentDescription = "Manual",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
             OutlinedButton(
-                onClick = onRecordExpense,
+                onClick = {
+                    manualEntryInitialType = TransactionType.SPEND
+                    manualEntryInitialSource = VBucksSource.GIFT
+                    showManualEntryDialog = true
+                },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(Icons.Default.Add, contentDescription = null)

@@ -18,6 +18,24 @@ interface TransactionDao {
     @Insert
     suspend fun insertTransaction(transaction: TransactionEntity): Long
 
+    @androidx.room.Delete
+    suspend fun deleteTransaction(transaction: TransactionEntity)
+
+    @androidx.room.Update
+    suspend fun updateTransaction(transaction: TransactionEntity)
+
+    @Query("SELECT * FROM transactions WHERE syncId = :syncId")
+    suspend fun getTransactionBySyncId(syncId: String): TransactionEntity?
+
+    @Query("SELECT * FROM transactions WHERE isSynced = 0")
+    suspend fun getUnsyncedTransactions(): List<TransactionEntity>
+
+    @Query("SELECT * FROM transactions")
+    suspend fun getAllTransactionsList(): List<TransactionEntity>
+
+    @Query("DELETE FROM transactions")
+    suspend fun clearAllTransactions()
+
     @Query("SELECT SUM(CASE WHEN type = 'EARN' THEN amount ELSE -amount END) FROM transactions WHERE accountId = :accountId")
     fun getBalanceByAccount(accountId: Long): Flow<Int?>
 

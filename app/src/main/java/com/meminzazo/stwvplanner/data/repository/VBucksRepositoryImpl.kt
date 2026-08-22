@@ -19,7 +19,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 
 class VBucksRepositoryImpl @Inject constructor(
     private val accountDao: AccountDao,
-    private val transactionDao: TransactionDao
+    private val transactionDao: TransactionDao,
+    private val scheduleSyncUseCase: javax.inject.Provider<com.meminzazo.stwvplanner.domain.usecase.ScheduleSyncUseCase>
 ) : VBucksRepository {
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -61,11 +62,21 @@ class VBucksRepositoryImpl @Inject constructor(
     }
 
     override suspend fun insertAccount(account: Account): Long {
-        return accountDao.insertAccount(account.toEntity())
+        val entity = account.toEntity().copy(isSynced = false, lastUpdated = System.currentTimeMillis())
+        val id = accountDao.insertAccount(entity)
+        scheduleSyncUseCase.get().invoke()
+        return id
+    }
+
+    override suspend fun updateAccount(account: Account) {
+        val entity = account.toEntity().copy(isSynced = false, lastUpdated = System.currentTimeMillis())
+        accountDao.updateAccount(entity)
+        scheduleSyncUseCase.get().invoke()
     }
 
     override suspend fun deleteAccount(id: Long) {
         accountDao.deleteAccount(id)
+        scheduleSyncUseCase.get().invoke()
     }
 
     override fun getTransactions(accountId: Long?): Flow<List<Transaction>> {
@@ -78,7 +89,13 @@ class VBucksRepositoryImpl @Inject constructor(
     }
 
     override suspend fun insertTransaction(transaction: Transaction): Long {
-        val transactionId = transactionDao.insertTransaction(transaction.toEntity())
+        val account = accountDao.getAccountById(transaction.accountId)
+        val entity = transaction.toEntity().copy(
+            accountSyncId = account?.syncId,
+            isSynced = false, 
+            lastUpdated = System.currentTimeMillis()
+        )
+        val transactionId = transactionDao.insertTransaction(entity)
 
         // Lógica de doble inserción para regalos entre cuentas locales
         if (transaction.source == com.meminzazo.stwvplanner.domain.model.VBucksSource.GIFT) {
@@ -91,13 +108,21 @@ class VBucksRepositoryImpl @Inject constructor(
                     senderAccountId = transaction.accountId,
                     receiverAccountId = null
                 )
-                transactionDao.insertTransaction(receivingTransaction.toEntity())
-            } else if (transaction.type == com.meminzazo.stwvplanner.domain.model.TransactionType.EARN && transaction.senderAccountId != null) {
-                // (Opcional) Si registro que recibí, el otro gastó (aunque normalmente se registra desde el emisor)
+                transactionDao.insertTransaction(receivingTransaction.toEntity().copy(isSynced = false, lastUpdated = System.currentTimeMillis()))
             }
         }
+        
+        scheduleSyncUseCase.get().invoke()
 
         return transactionId
+    }
+
+    override suspend fun deleteTransaction(transaction: Transaction) {
+        transactionDao.deleteTransaction(transaction.toEntity())
+    }
+
+    override suspend fun updateTransaction(transaction: Transaction) {
+        transactionDao.updateTransaction(transaction.toEntity())
     }
 
     override fun getBalance(accountId: Long): Flow<Int> {

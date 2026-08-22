@@ -12,6 +12,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,6 +30,7 @@ import com.meminzazo.stwvplanner.domain.model.Account
 import com.meminzazo.stwvplanner.domain.model.Transaction
 import com.meminzazo.stwvplanner.domain.model.TransactionType
 import com.meminzazo.stwvplanner.domain.model.VBucksSource
+import com.meminzazo.stwvplanner.presentation.common.ManualEntryDialog
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -40,6 +44,36 @@ fun HistoryScreen(
     onPopBackStack: () -> Unit
 ) {
     val state by viewModel.state.collectAsState()
+    var showManualEntryDialog by remember { mutableStateOf(false) }
+    var transactionToEdit by remember { mutableStateOf<Transaction?>(null) }
+
+    if (showManualEntryDialog || transactionToEdit != null) {
+        ManualEntryDialog(
+            dependents = state.dependents,
+            transactionToEdit = transactionToEdit,
+            onDismiss = { 
+                showManualEntryDialog = false
+                transactionToEdit = null
+            },
+            onConfirm = { amount, type, source, desc, date, receiverId, receiverName ->
+                if (transactionToEdit != null) {
+                    viewModel.onUpdateTransaction(transactionToEdit!!.copy(
+                        amount = amount,
+                        type = type,
+                        source = source,
+                        description = desc,
+                        date = date,
+                        receiverAccountId = receiverId,
+                        recipientAccountName = receiverName
+                    ))
+                } else {
+                    viewModel.onAddTransaction(amount, type, source, desc, date, receiverId, receiverName)
+                }
+                showManualEntryDialog = false
+                transactionToEdit = null
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -51,6 +85,11 @@ fun HistoryScreen(
                     }
                 }
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(onClick = { showManualEntryDialog = true }) {
+                Icon(Icons.Default.Add, contentDescription = "Añadir Registro")
+            }
         }
     ) { paddingValues ->
         Column(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
@@ -61,9 +100,19 @@ fun HistoryScreen(
             )
 
             if (state.isDependent) {
-                DependentLedger(state, Modifier.weight(1f))
+                DependentLedger(
+                    state = state, 
+                    modifier = Modifier.weight(1f),
+                    onEditTransaction = { transactionToEdit = it },
+                    onDeleteTransaction = { viewModel.onDeleteTransaction(it) }
+                )
             } else {
-                MainAccountTable(state, Modifier.weight(1f))
+                MainAccountTable(
+                    state = state, 
+                    modifier = Modifier.weight(1f),
+                    onEditTransaction = { transactionToEdit = it },
+                    onDeleteTransaction = { viewModel.onDeleteTransaction(it) }
+                )
             }
         }
     }
@@ -113,18 +162,41 @@ private data class DayRow(
     val transactions: List<Transaction>
 )
 
-private fun groupTransactionsByDay(transactions: List<Transaction>, dependentIds: Set<Long>): List<DayRow> {
+private fun groupTransactionsByDay(
+    transactions: List<Transaction>, 
+    dependentIds: Set<Long>,
+    month: Int,
+    year: Int
+): List<DayRow> {
     val dayKeyFmt = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
     fun isDependentGift(tx: Transaction) =
         tx.source == VBucksSource.GIFT && tx.type == TransactionType.SPEND && tx.receiverAccountId in dependentIds
     fun isCore(tx: Transaction) =
         tx.source == VBucksSource.DAILY || tx.source == VBucksSource.ALERT || tx.source == VBucksSource.EXTERNAL
 
-    return transactions
-        .groupBy { dayKeyFmt.format(Date(it.date)) }
-        .map { (_, txsOfDay) ->
+    val grouped = transactions.groupBy { dayKeyFmt.format(Date(it.date)) }
+    
+    val calendar = Calendar.getInstance().apply {
+        set(Calendar.YEAR, year)
+        set(Calendar.MONTH, month)
+        set(Calendar.DAY_OF_MONTH, 1)
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    
+    val daysInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
+    val result = mutableListOf<DayRow>()
+    
+    for (day in 1..daysInMonth) {
+        calendar.set(Calendar.DAY_OF_MONTH, day)
+        val key = dayKeyFmt.format(calendar.time)
+        val txsOfDay = grouped[key] ?: emptyList()
+        
+        result.add(
             DayRow(
-                dateMillis = txsOfDay.first().date,
+                dateMillis = calendar.timeInMillis,
                 daily = txsOfDay.filter { it.source == VBucksSource.DAILY }.sumOf { it.amount },
                 alert = txsOfDay.filter { it.source == VBucksSource.ALERT }.sumOf { it.amount },
                 external = txsOfDay.filter { it.source == VBucksSource.EXTERNAL }.sumOf { it.amount },
@@ -135,8 +207,10 @@ private fun groupTransactionsByDay(transactions: List<Transaction>, dependentIds
                     .sumOf { if (it.type == TransactionType.SPEND) -it.amount else it.amount },
                 transactions = txsOfDay.sortedBy { it.date }
             )
-        }
-        .sortedByDescending { it.dateMillis }
+        )
+    }
+
+    return result.sortedByDescending { it.dateMillis }
 }
 
 /**
@@ -145,20 +219,32 @@ private fun groupTransactionsByDay(transactions: List<Transaction>, dependentIds
  * La tabla completa se desliza horizontalmente si hay muchos dependientes.
  */
 @Composable
-fun MainAccountTable(state: HistoryState, modifier: Modifier = Modifier) {
+fun MainAccountTable(
+    state: HistoryState, 
+    modifier: Modifier = Modifier,
+    onEditTransaction: (Transaction) -> Unit,
+    onDeleteTransaction: (Transaction) -> Unit
+) {
     val scrollState = rememberScrollState()
+    val verticalScrollState = rememberScrollState()
     val sdf = remember { SimpleDateFormat("dd/MM/yy", Locale.getDefault()) }
     val dependentIds = remember(state.dependents) { state.dependents.map { it.id }.toSet() }
-    val dayRows = remember(state.transactions, dependentIds) {
-        groupTransactionsByDay(state.transactions, dependentIds)
+    val dayRows = remember(state.transactions, dependentIds, state.selectedMonth, state.selectedYear) {
+        groupTransactionsByDay(state.transactions, dependentIds, state.selectedMonth, state.selectedYear)
     }
     var selectedDay by remember { mutableStateOf<DayRow?>(null) }
 
     selectedDay?.let { day ->
-        DayDetailDialog(day = day, dependents = state.dependents, onDismiss = { selectedDay = null })
+        DayDetailDialog(
+            day = day, 
+            dependents = state.dependents, 
+            onDismiss = { selectedDay = null },
+            onEditTransaction = onEditTransaction,
+            onDeleteTransaction = onDeleteTransaction
+        )
     }
 
-    Column(modifier = modifier) {
+    Column(modifier = modifier.verticalScroll(verticalScrollState)) {
         Column(modifier = Modifier.horizontalScroll(scrollState)) {
             Row(
                 modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant).padding(vertical = 8.dp),
@@ -222,7 +308,13 @@ fun MainAccountTable(state: HistoryState, modifier: Modifier = Modifier) {
  * tal como pediste, en vez de amontonarlas en la tabla principal.
  */
 @Composable
-private fun DayDetailDialog(day: DayRow, dependents: List<Account>, onDismiss: () -> Unit) {
+private fun DayDetailDialog(
+    day: DayRow, 
+    dependents: List<Account>, 
+    onDismiss: () -> Unit,
+    onEditTransaction: (Transaction) -> Unit,
+    onDeleteTransaction: (Transaction) -> Unit
+) {
     val headerFmt = remember { SimpleDateFormat("EEEE d 'de' MMMM", Locale("es", "ES")) }
     val dependentNames = remember(dependents) { dependents.associate { it.id to it.name } }
 
@@ -245,19 +337,30 @@ private fun DayDetailDialog(day: DayRow, dependents: List<Account>, onDismiss: (
                         else -> tx.itemName?.takeIf { it.isNotBlank() } ?: tx.description.ifBlank { tx.source.name }
                     }
                     val signed = if (tx.type == TransactionType.SPEND) -tx.amount else tx.amount
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(label, fontSize = 13.sp, modifier = Modifier.weight(1f).padding(end = 8.dp))
-                        Text(
-                            if (signed >= 0) "+$signed" else "$signed",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (signed >= 0) Color(0xFF4CAF50) else Color.Red
-                        )
+                    
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(label, fontSize = 13.sp)
+                                Text(
+                                    if (signed >= 0) "+$signed" else "$signed",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (signed >= 0) Color(0xFF4CAF50) else Color.Red
+                                )
+                            }
+                            IconButton(onClick = { onEditTransaction(tx); onDismiss() }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Editar", modifier = Modifier.size(20.dp))
+                            }
+                            IconButton(onClick = { onDeleteTransaction(tx); onDismiss() }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = Color.Red, modifier = Modifier.size(20.dp))
+                            }
+                        }
+                        HorizontalDivider(thickness = 0.5.dp, color = Color.LightGray)
                     }
-                    HorizontalDivider(thickness = 0.5.dp, color = Color.LightGray)
                 }
                 if (day.transactions.isEmpty()) {
                     Text("Sin movimientos.", fontSize = 12.sp, color = Color.Gray)
@@ -310,13 +413,23 @@ private fun groupDependentTransactionsByDay(transactions: List<Transaction>): Li
 }
 
 @Composable
-fun DependentLedger(state: HistoryState, modifier: Modifier = Modifier) {
+fun DependentLedger(
+    state: HistoryState, 
+    modifier: Modifier = Modifier,
+    onEditTransaction: (Transaction) -> Unit,
+    onDeleteTransaction: (Transaction) -> Unit
+) {
     val sdf = remember { SimpleDateFormat("dd/MM/yy", Locale.getDefault()) }
     val dayRows = remember(state.transactions) { groupDependentTransactionsByDay(state.transactions) }
     var selectedDay by remember { mutableStateOf<DependentDayRow?>(null) }
 
     selectedDay?.let { day ->
-        DependentDayDetailDialog(day = day, onDismiss = { selectedDay = null })
+        DependentDayDetailDialog(
+            day = day, 
+            onDismiss = { selectedDay = null },
+            onEditTransaction = onEditTransaction,
+            onDeleteTransaction = onDeleteTransaction
+        )
     }
 
     Column(modifier = modifier) {
@@ -355,7 +468,12 @@ fun DependentLedger(state: HistoryState, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun DependentDayDetailDialog(day: DependentDayRow, onDismiss: () -> Unit) {
+private fun DependentDayDetailDialog(
+    day: DependentDayRow, 
+    onDismiss: () -> Unit,
+    onEditTransaction: (Transaction) -> Unit,
+    onDeleteTransaction: (Transaction) -> Unit
+) {
     val headerFmt = remember { SimpleDateFormat("EEEE d 'de' MMMM", Locale("es", "ES")) }
 
     AlertDialog(
@@ -369,19 +487,30 @@ private fun DependentDayDetailDialog(day: DependentDayRow, onDismiss: () -> Unit
                     val itemLabel = tx.itemName?.takeIf { it.isNotBlank() } ?: tx.description.ifBlank { "Regalo" }
                     val label = if (tx.type == TransactionType.EARN) "Recibido: $itemLabel" else "Enviado: $itemLabel"
                     val signed = dependentBalanceSigned(tx)
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(label, fontSize = 13.sp, modifier = Modifier.weight(1f).padding(end = 8.dp))
-                        Text(
-                            if (signed >= 0) "+$signed" else "$signed",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = dependentBalanceColor(signed)
-                        )
+                    
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(label, fontSize = 13.sp)
+                                Text(
+                                    if (signed >= 0) "+$signed" else "$signed",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = dependentBalanceColor(signed)
+                                )
+                            }
+                            IconButton(onClick = { onEditTransaction(tx); onDismiss() }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Editar", modifier = Modifier.size(20.dp))
+                            }
+                            IconButton(onClick = { onDeleteTransaction(tx); onDismiss() }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = Color.Red, modifier = Modifier.size(20.dp))
+                            }
+                        }
+                        HorizontalDivider(thickness = 0.5.dp, color = Color.LightGray)
                     }
-                    HorizontalDivider(thickness = 0.5.dp, color = Color.LightGray)
                 }
                 if (day.transactions.isEmpty()) {
                     Text("Sin movimientos.", fontSize = 12.sp, color = Color.Gray)

@@ -47,9 +47,9 @@ class LoginViewModel @Inject constructor(
                 val result = credentialManager.getCredential(context, request)
                 handleSignInResult(result)
             } catch (e: GetCredentialException) {
-                _uiEvent.emit(UiEvent.ShowError(e.message ?: "Error al obtener credenciales"))
+                _uiEvent.emit(UiEvent.ShowError("Error CredentialManager: ${e.message} (${e.javaClass.simpleName})"))
             } catch (e: Exception) {
-                _uiEvent.emit(UiEvent.ShowError(e.message ?: "Error desconocido"))
+                _uiEvent.emit(UiEvent.ShowError("Error: ${e.message} (${e.javaClass.simpleName})"))
             } finally {
                 _isLoading.value = false
             }
@@ -58,14 +58,25 @@ class LoginViewModel @Inject constructor(
 
     private suspend fun handleSignInResult(result: GetCredentialResponse) {
         val credential = result.credential
-        if (credential is GoogleIdTokenCredential) {
-            val idToken = credential.idToken
+        
+        val googleIdTokenCredential = try {
+            if (credential is GoogleIdTokenCredential) {
+                credential
+            } else {
+                GoogleIdTokenCredential.createFrom(credential.data)
+            }
+        } catch (e: Exception) {
+            null
+        }
+
+        if (googleIdTokenCredential != null) {
+            val idToken = googleIdTokenCredential.idToken
             val authResult = authRepository.signInWithGoogle(idToken)
             authResult.onFailure {
                 _uiEvent.emit(UiEvent.ShowError(it.message ?: "Error al iniciar sesión con Firebase"))
             }
         } else {
-            _uiEvent.emit(UiEvent.ShowError("Tipo de credencial no soportado"))
+            _uiEvent.emit(UiEvent.ShowError("Tipo de credencial no reconocido: ${credential.type}"))
         }
     }
 

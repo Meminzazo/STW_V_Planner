@@ -10,6 +10,7 @@ import com.meminzazo.stwvplanner.domain.model.VBucksSource
 import com.meminzazo.stwvplanner.domain.repository.VBucksRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 import java.util.Calendar
 import javax.inject.Inject
 
@@ -86,9 +87,50 @@ class HistoryViewModel @Inject constructor(
             }.sumOf { if (it.type == TransactionType.SPEND) -it.amount else it.amount },
             dependents = dependents,
             totalsByDependent = totalsByDependent,
-            selectedMonthName = monthName
+            selectedMonthName = monthName,
+            selectedMonth = date.get(Calendar.MONTH),
+            selectedYear = date.get(Calendar.YEAR)
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HistoryState())
+
+    fun onDeleteTransaction(transaction: Transaction) {
+        viewModelScope.launch {
+            repository.deleteTransaction(transaction)
+        }
+    }
+
+    fun onUpdateTransaction(transaction: Transaction) {
+        viewModelScope.launch {
+            repository.updateTransaction(transaction)
+        }
+    }
+
+    fun onAddTransaction(
+        amount: Int,
+        type: TransactionType,
+        source: VBucksSource,
+        description: String,
+        date: Long,
+        receiverId: Long? = null,
+        receiverName: String? = null
+    ) {
+        viewModelScope.launch {
+            val transaction = Transaction(
+                accountId = accountId,
+                amount = amount,
+                type = type,
+                source = source,
+                description = description.ifBlank {
+                    if (type == TransactionType.SPEND && receiverName != null) "Regalo a $receiverName"
+                    else source.name
+                },
+                date = date,
+                receiverAccountId = receiverId,
+                recipientAccountName = receiverName
+            )
+            repository.insertTransaction(transaction)
+        }
+    }
 }
 
 data class HistoryState(
@@ -101,5 +143,7 @@ data class HistoryState(
     val totalOthers: Int = 0,
     val dependents: List<Account> = emptyList(),
     val totalsByDependent: Map<Long, Int> = emptyMap(),
-    val selectedMonthName: String = ""
+    val selectedMonthName: String = "",
+    val selectedMonth: Int = 0,
+    val selectedYear: Int = 0
 )

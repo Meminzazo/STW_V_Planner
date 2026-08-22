@@ -168,6 +168,15 @@ class AccountDetailViewModel @Inject constructor(
         .map { transactions -> transactions.filter { it.type == TransactionType.SPEND } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val sharingPayload = combine(
+        account,
+        repository.getTransactions(accountId).take(1)
+    ) { acc, txs ->
+        if (acc != null) {
+            com.meminzazo.stwvplanner.domain.model.SharingPayload(acc, txs.take(50))
+        } else null
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     // Lógica para obtener balances por relación (Solo dependientes de esta cuenta)
     val dependentAccounts = repository.getAccountsByParent(accountId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -213,6 +222,50 @@ class AccountDetailViewModel @Inject constructor(
         viewModelScope.launch {
             if (name.isBlank()) return@launch
             addAccountUseCase(name = name, parentAccountId = accountId)
+        }
+    }
+
+    fun onRenameAccountClick(id: Long, newName: String) {
+        viewModelScope.launch {
+            if (newName.isBlank()) return@launch
+            val acc = repository.getAccountById(id)
+            if (acc != null) {
+                repository.updateAccount(acc.copy(name = newName))
+            }
+        }
+    }
+
+    fun onManualEntryClick(
+        amount: Int,
+        type: TransactionType,
+        source: VBucksSource,
+        description: String,
+        date: Long,
+        receiverId: Long? = null,
+        receiverName: String? = null
+    ) {
+        viewModelScope.launch {
+            val transaction = Transaction(
+                accountId = accountId,
+                amount = amount,
+                type = type,
+                source = source,
+                description = description.ifBlank { 
+                    if (type == TransactionType.SPEND && receiverName != null) "Regalo a $receiverName"
+                    else source.name 
+                },
+                date = date,
+                receiverAccountId = receiverId,
+                recipientAccountName = receiverName
+            )
+            try {
+                repository.insertTransaction(transaction)
+                if (source == VBucksSource.DAILY) {
+                    checkDailyMission()
+                }
+            } catch (e: Exception) {
+                _uiEvent.emit(UiEvent.ShowError(e.message ?: "Error al guardar el registro"))
+            }
         }
     }
 
