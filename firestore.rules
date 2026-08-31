@@ -10,12 +10,18 @@ service cloud.firestore {
     
     // 2. Reglas para los códigos de transferencia (Compartir con amigos)
     match /transfer_codes/{code} {
-      // Cualquiera que esté logueado puede crear un código o leer uno si se lo saben
-      allow create, read: if request.auth != null;
-      
-      // Opcional: Solo permitir borrar si eres el creador o después de usarlo
-      // Por simplicidad en esta fase, permitimos lectura/escritura si estás logueado
-      allow update, delete: if request.auth != null;
+      // Solo se puede crear si estás logueado, quedas registrado como creador,
+      // y el payload no rebasa el límite (forzado en servidor, no solo en Kotlin)
+      allow create: if request.auth != null
+                    && request.resource.data.createdBy == request.auth.uid
+                    && request.resource.data.data is string
+                    && request.resource.data.data.size() < 2000000;
+
+      // Leer y borrar siguen abiertos a cualquier logueado (así funciona compartir código),
+      // pero ahora el código es imposible de adivinar por fuerza bruta (10 chars alfanuméricos)
+      allow read, delete: if request.auth != null;
+
+      // No existe "update": ningún flujo de la app modifica un código ya creado
     }
   }
 }

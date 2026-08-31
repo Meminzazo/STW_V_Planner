@@ -115,12 +115,12 @@ fun AccountSelectionScreen(
             title = { Text("Importar con Código") },
             text = {
                 Column {
-                    Text("Ingresa el código de 8 dígitos que te compartieron:")
+                    Text("Ingresa el código de 10 caracteres que te compartieron:")
                     OutlinedTextField(
                         value = code,
-                        onValueChange = { if (it.length <= 8 && it.all { c -> c.isDigit() }) code = it },
+                        onValueChange = { if (it.length <= 10) code = it.uppercase() },
                         label = { Text("Código") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -131,7 +131,7 @@ fun AccountSelectionScreen(
                         viewModel.onImportWithCode(code)
                         showImportCodeDialog = false
                     },
-                    enabled = code.length == 8
+                    enabled = code.length == 10
                 ) { Text("Importar") }
             },
             dismissButton = {
@@ -281,8 +281,8 @@ fun AccountSelectionScreen(
                 item {
                     Spacer(Modifier.height(24.dp))
                     Text(
-                        "GESTIONAR CUENTAS OCULTAS", 
-                        style = MaterialTheme.typography.labelSmall, 
+                        "GESTIONAR CUENTAS OCULTAS",
+                        style = MaterialTheme.typography.labelSmall,
                         color = Color.Gray,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )

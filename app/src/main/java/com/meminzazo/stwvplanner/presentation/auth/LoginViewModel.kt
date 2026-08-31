@@ -99,13 +99,17 @@ class LoginViewModel @Inject constructor(
 
     private suspend fun handleGoogleSignInResult(result: GetCredentialResponse) {
         val credential = result.credential
-        if (credential is GoogleIdTokenCredential) {
-            val res = authRepository.signInWithGoogle(credential.idToken)
+        
+        try {
+            // Intentamos extraer la credencial de Google de forma robusta
+            val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
+            val res = authRepository.signInWithGoogle(googleIdTokenCredential.idToken)
             if (res.isFailure) {
-                _uiEvent.emit(UiEvent.ShowError("Error al iniciar sesión: ${res.exceptionOrNull()?.message}"))
+                _uiEvent.emit(UiEvent.ShowError("Firebase: ${res.exceptionOrNull()?.message}"))
             }
-        } else {
-            _uiEvent.emit(UiEvent.ShowError("Tipo de credencial no soportado"))
+        } catch (e: Exception) {
+            // Si falla, mostramos el tipo real para diagnosticar
+            _uiEvent.emit(UiEvent.ShowError("Error: Tipo '${credential.type}' no soportado"))
         }
     }
 

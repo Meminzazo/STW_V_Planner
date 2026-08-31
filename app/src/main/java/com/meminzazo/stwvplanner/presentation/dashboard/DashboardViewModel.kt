@@ -48,7 +48,7 @@ class DashboardViewModel @Inject constructor(
     val isLocalMode = _isLocalMode.asStateFlow()
 
     private var lastActionTime = 0L
-    private val CLOUD_COOLDOWN = 60000L 
+    private val CLOUD_COOLDOWN = 60000L
 
     private var importFailCount = 0
     private var lockoutUntil = 0L
@@ -150,7 +150,7 @@ class DashboardViewModel @Inject constructor(
     fun onImportWithCode(code: String) {
         if (!isImportAllowed()) return
         viewModelScope.launch {
-            if (code.length != 8) return@launch
+            if (code.length != 10) return@launch
             _isLoading.value = true
             val result = syncRepository.restoreFromTransferCode(code)
             if (result.isSuccess) {
@@ -159,7 +159,7 @@ class DashboardViewModel @Inject constructor(
             } else {
                 importFailCount++
                 if (importFailCount >= 3) {
-                    lockoutUntil = System.currentTimeMillis() + 900000L 
+                    lockoutUntil = System.currentTimeMillis() + 900000L
                     _uiEvent.emit(UiEvent.ShowError("Seguridad: Demasiados fallos. Bloqueo de 15 min activado."))
                 } else {
                     _uiEvent.emit(UiEvent.ShowError("Código inválido o expirado"))
@@ -192,14 +192,18 @@ class DashboardViewModel @Inject constructor(
 
                 val result = credentialManager.getCredential(activity, request)
                 val credential = result.credential
-                if (credential is GoogleIdTokenCredential) {
-                    val res = authRepository.signInWithGoogle(credential.idToken)
+                
+                try {
+                    val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
+                    val res = authRepository.signInWithGoogle(googleIdTokenCredential.idToken)
                     if (res.isSuccess) {
                         _isLocalMode.value = false
                         _uiEvent.emit(UiEvent.ShowError("¡Cuenta vinculada con éxito!"))
                     } else {
                         _uiEvent.emit(UiEvent.ShowError("Firebase: ${res.exceptionOrNull()?.message}"))
                     }
+                } catch (e: Exception) {
+                    _uiEvent.emit(UiEvent.ShowError("Error: Tipo '${credential.type}' no reconocido"))
                 }
             } catch (e: GetCredentialException) {
                 _uiEvent.emit(UiEvent.ShowError("Google: ${e.message}"))
@@ -272,9 +276,9 @@ class DashboardViewModel @Inject constructor(
                 amount = amount,
                 type = type,
                 source = source,
-                description = description.ifBlank { 
+                description = description.ifBlank {
                     if (type == TransactionType.SPEND && receiverName != null) "Regalo a $receiverName"
-                    else source.name 
+                    else source.name
                 },
                 date = date,
                 receiverAccountId = receiverId,

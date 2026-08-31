@@ -27,7 +27,7 @@ class SyncRepositoryImpl @Inject constructor(
         return try {
             val snapshot = firestore.collection("users").document(userId).collection("backup").document("latest").get().await()
             if (!snapshot.exists()) return Result.failure(Exception("Sin respaldo"))
-            
+
             val chunksCount = snapshot.getLong("totalChunks") ?: 0L
             val fullJson = if (chunksCount > 0) {
                 val sb = StringBuilder()
@@ -48,7 +48,7 @@ class SyncRepositoryImpl @Inject constructor(
     override suspend fun backupFullDatabase(userId: String): Result<Unit> {
         return try {
             val json = backupToJson()
-            
+
             // Protección de cuota: Límite de 2MB por respaldo
             if (json.length > 2_000_000) {
                 return Result.failure(Exception("Respaldo demasiado grande (>2MB). Elimina registros antiguos."))
@@ -72,16 +72,19 @@ class SyncRepositoryImpl @Inject constructor(
 
     override suspend fun generateTransferCode(userId: String): Result<String> {
         return try {
-            val charPool = "0123456789"
-            val code = (1..8).map { charPool.random() }.joinToString("")
-            
+            // Alfanumérico, sin caracteres ambiguos (0/O, 1/I/L) -> ~10^15 combinaciones
+            val charPool = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+            val code = (1..10).map { charPool.random() }.joinToString("")
+
             val json = backupToJson()
-            // Protección de cuota: Límite de tamaño en transferencia también
+            // Protección de cuota: Límite de tamaño en transferencia también (también forzado en firestore.rules)
             if (json.length > 2_000_000) {
                 return Result.failure(Exception("Datos demasiado grandes para transferir"))
             }
 
-            firestore.collection("transfer_codes").document(code).set(mapOf("data" to json, "createdAt" to System.currentTimeMillis())).await()
+            firestore.collection("transfer_codes").document(code)
+                .set(mapOf("data" to json, "createdAt" to System.currentTimeMillis(), "createdBy" to userId))
+                .await()
             Result.success(code)
         } catch (e: Exception) {
             Result.failure(e)
@@ -93,17 +96,17 @@ class SyncRepositoryImpl @Inject constructor(
             val snapshot = firestore.collection("transfer_codes").document(code).get().await()
             if (!snapshot.exists()) return Result.failure(Exception("Código no encontrado"))
             val createdAt = snapshot.getLong("createdAt") ?: 0L
-            
+
             // Caducidad de 1 hora para protección
             if (System.currentTimeMillis() - createdAt > 3600000L) {
                 firestore.collection("transfer_codes").document(code).delete()
                 return Result.failure(Exception("Código expirado (1h)"))
             }
             val json = snapshot.getString("data") ?: return Result.failure(Exception("Datos vacíos"))
-            
+
             // Opcional: borrar el código tras su uso para evitar spam
             firestore.collection("transfer_codes").document(code).delete().await()
-            
+
             restoreFromJson(json)
         } catch (e: Exception) {
             Result.failure(e)
@@ -164,7 +167,7 @@ class SyncRepositoryImpl @Inject constructor(
             Result.success(transactions)
         } catch (e: Exception) { Result.failure(e) }
     }
-    
+
     private fun AccountEntity.toFirestoreMap() = mapOf("syncId" to syncId, "name" to name, "isMain" to isMain, "parentSyncId" to parentSyncId, "lastUpdated" to lastUpdated)
     private fun TransactionEntity.toFirestoreMap() = mapOf("syncId" to syncId, "accountSyncId" to accountSyncId, "amount" to amount, "type" to type.name, "source" to source.name, "description" to description, "date" to date, "recipientAccountName" to recipientAccountName, "itemType" to itemType?.name, "itemName" to itemName, "lastUpdated" to lastUpdated)
 }
