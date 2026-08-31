@@ -6,12 +6,15 @@ import kotlinx.coroutines.flow.Flow
 
 interface VBucksRepository {
     fun getMainAccounts(): Flow<List<Account>>
+    fun getDeletedMainAccounts(): Flow<List<Account>>
     fun getAccountsByParent(parentId: Long): Flow<List<Account>>
-    fun getAccounts(): Flow<List<Account>> // Mantenemos para compatibilidad si es necesario, pero filtraremos
+    fun getDeletedAccountsByParent(parentId: Long): Flow<List<Account>>
+    fun getAccounts(): Flow<List<Account>>
     suspend fun getAccountById(id: Long): Account?
     suspend fun insertAccount(account: Account): Long
     suspend fun updateAccount(account: Account)
     suspend fun deleteAccount(id: Long)
+    suspend fun restoreAccount(id: Long)
 
     fun getTransactions(accountId: Long? = null): Flow<List<Transaction>>
     suspend fun insertTransaction(transaction: Transaction): Long

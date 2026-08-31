@@ -2,6 +2,8 @@ package com.meminzazo.stwvplanner.di
 
 import android.content.Context
 import androidx.room.Room
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.meminzazo.stwvplanner.data.local.VBucksDatabase
 import com.meminzazo.stwvplanner.data.local.dao.AccountDao
 import com.meminzazo.stwvplanner.data.local.dao.TransactionDao
@@ -16,6 +18,12 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
 
+    private val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE accounts ADD COLUMN isDeleted INTEGER NOT NULL DEFAULT 0")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): VBucksDatabase {
@@ -23,7 +31,10 @@ object DatabaseModule {
             context,
             VBucksDatabase::class.java,
             "vbucks_db"
-        ).fallbackToDestructiveMigration().build()
+        )
+        .addMigrations(MIGRATION_3_4)
+        .fallbackToDestructiveMigration()
+        .build()
     }
 
     @Provides

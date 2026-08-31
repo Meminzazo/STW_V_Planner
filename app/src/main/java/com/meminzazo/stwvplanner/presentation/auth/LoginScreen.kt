@@ -1,18 +1,19 @@
 package com.meminzazo.stwvplanner.presentation.auth
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.meminzazo.stwvplanner.presentation.theme.VBucksGold
+import com.meminzazo.stwvplanner.presentation.theme.FortAccent
 
 @Composable
 fun LoginScreen(
@@ -21,9 +22,6 @@ fun LoginScreen(
 ) {
     val context = LocalContext.current
     val isLoading by viewModel.isLoading.collectAsState()
-    val isLoginMode by viewModel.isLoginMode.collectAsState()
-    val email by viewModel.email.collectAsState()
-    val password by viewModel.password.collectAsState()
 
     LaunchedEffect(Unit) {
         viewModel.uiEvent.collect { event ->
@@ -49,61 +47,46 @@ fun LoginScreen(
             color = VBucksGold
         )
         
-        Spacer(modifier = Modifier.height(32.dp))
+        Text(
+            text = "v3.0 - Blindaje Total",
+            style = MaterialTheme.typography.labelMedium,
+            color = FortAccent,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+        
+        Spacer(modifier = Modifier.height(48.dp))
 
         if (isLoading) {
-            CircularProgressIndicator()
+            CircularProgressIndicator(color = FortAccent)
         } else {
-            // Formulario de Email
-            OutlinedTextField(
-                value = email,
-                onValueChange = viewModel::onEmailChange,
-                label = { Text("Correo Electrónico") },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                singleLine = true
-            )
-            
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            OutlinedTextField(
-                value = password,
-                onValueChange = viewModel::onPasswordChange,
-                label = { Text("Contraseña") },
-                modifier = Modifier.fillMaxWidth(),
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                singleLine = true
-            )
-            
-            Spacer(modifier = Modifier.height(24.dp))
-
             Button(
-                onClick = viewModel::onEmailAuthClick,
-                modifier = Modifier.fillMaxWidth()
+                onClick = { viewModel.onSignInWithGoogle(context) },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = MaterialTheme.shapes.medium
             ) {
-                Text(if (isLoginMode) "INICIAR SESIÓN" else "CREAR CUENTA")
+                Text("CONTINUAR CON GOOGLE", fontWeight = FontWeight.Black)
             }
             
-            TextButton(onClick = viewModel::toggleAuthMode) {
-                Text(if (isLoginMode) "¿No tienes cuenta? Regístrate" else "¿Ya tienes cuenta? Inicia sesión")
-            }
-
-            if (isLoginMode) {
-                TextButton(onClick = viewModel::onForgotPasswordClick) {
-                    Text("Olvidé mi contraseña", style = MaterialTheme.typography.bodySmall)
-                }
-            }
-
             Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
             
             OutlinedButton(
-                onClick = { viewModel.onSignInWithGoogle(context) },
-                modifier = Modifier.fillMaxWidth()
+                onClick = viewModel::onContinueAsGuest,
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = MaterialTheme.shapes.medium,
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color.Gray)
             ) {
-                Text("CONTINUAR CON GOOGLE")
+                Text("ENTRAR COMO INVITADO (LOCAL)", color = Color.Gray, fontWeight = FontWeight.Bold)
             }
+
+            Spacer(modifier = Modifier.height(32.dp))
+            
+            Text(
+                text = "El modo invitado guarda los datos solo en este dispositivo. Usa Google para activar el respaldo en la nube.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.Gray.copy(alpha = 0.7f),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
         }
     }
 }

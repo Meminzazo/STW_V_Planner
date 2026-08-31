@@ -1,13 +1,16 @@
 package com.meminzazo.stwvplanner.presentation.expense
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -27,6 +30,7 @@ fun AddExpenseScreen(
     val itemType by viewModel.itemType.collectAsState()
     val otherAccounts by viewModel.otherAccounts.collectAsState()
     val externalRecipients by viewModel.externalRecipients.collectAsState()
+    val focusManager = LocalFocusManager.current
 
     var expandedRecipient by remember { mutableStateOf(false) }
     var expandedItemType by remember { mutableStateOf(false) }
@@ -188,6 +192,8 @@ fun AddExpenseScreen(
                 value = description,
                 onValueChange = viewModel::onDescriptionChange,
                 label = { Text("Objeto (Skin, Baile, etc.)") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -195,7 +201,15 @@ fun AddExpenseScreen(
                 value = amount,
                 onValueChange = viewModel::onAmountChange,
                 label = { Text("Precio en V-Bucks") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(onDone = {
+                    focusManager.clearFocus()
+                    viewModel.onSaveClick()
+                }),
                 modifier = Modifier.fillMaxWidth()
             )
 

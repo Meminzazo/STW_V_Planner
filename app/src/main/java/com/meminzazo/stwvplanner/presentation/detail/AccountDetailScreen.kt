@@ -9,17 +9,24 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -49,6 +56,7 @@ fun AccountDetailScreen(
     val balance by viewModel.balance.collectAsState()
     val isDailyRegistered by viewModel.isDailyRegistered.collectAsState()
     val dependentRelations by viewModel.dependentRelations.collectAsState()
+    val deletedDependents by viewModel.deletedDependents.collectAsState()
     val earningsDesglosadas by viewModel.earningsDesglosadas.collectAsState()
     val earningsDesglosadasMensual by viewModel.earningsDesglosadasMensual.collectAsState()
     val earningsTransactions by viewModel.earningsTransactions.collectAsState()
@@ -62,12 +70,14 @@ fun AccountDetailScreen(
     val totalIncome by viewModel.totalIncome.collectAsState()
     val totalIncomeMensual by viewModel.totalIncomeMensual.collectAsState()
     val dependentAccounts by viewModel.dependentAccounts.collectAsState()
+    val focusManager = LocalFocusManager.current
 
     var showAddDependentDialog by remember { mutableStateOf(false) }
     var showManualEntryDialog by remember { mutableStateOf(false) }
     var showDailyAmountDialog by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
     var accountToRename by remember { mutableStateOf<Account?>(null) }
+    var accountToDelete by remember { mutableStateOf<Account?>(null) }
     var manualEntryInitialType by remember { mutableStateOf<TransactionType?>(null) }
     var manualEntryInitialSource by remember { mutableStateOf<VBucksSource?>(null) }
     var distributionToShow by remember { mutableStateOf<Pair<String, List<Transaction>>?>(null) }
@@ -114,6 +124,25 @@ fun AccountDetailScreen(
                 }
             )
         }
+    }
+
+    if (accountToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { accountToDelete = null },
+            title = { Text("OCULTAR DEPENDIENTE", fontWeight = FontWeight.Black) },
+            text = { Text("¿Deseas ocultar a '${accountToDelete!!.name}'? No se borrarán sus registros de regalo ni se alterará el balance histórico.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.onDeleteAccountClick(accountToDelete!!.id)
+                    accountToDelete = null
+                }, colors = ButtonDefaults.textButtonColors(contentColor = SpendRed)) {
+                    Text("OCULTAR")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { accountToDelete = null }) { Text("CANCELAR") }
+            }
+        )
     }
 
     if (showManualEntryDialog) {
@@ -268,8 +297,27 @@ fun AccountDetailScreen(
                     RelationItem(
                         relation = relation,
                         onClick = { onNavigateToSummary(relation.account.id) },
-                        onEditName = { accountToRename = relation.account }
+                        onEditName = { accountToRename = relation.account },
+                        onDelete = { accountToDelete = relation.account }
                     )
+                }
+
+                if (deletedDependents.isNotEmpty()) {
+                    item {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "GESTIONAR DEPENDIENTES OCULTOS", 
+                            style = MaterialTheme.typography.labelSmall, 
+                            color = Color.Gray,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                    }
+                    items(deletedDependents) { dep ->
+                        DeletedDependentItem(
+                            account = dep,
+                            onRestore = { viewModel.onRestoreAccountClick(dep.id) }
+                        )
+                    }
                 }
             }
             
@@ -299,15 +347,22 @@ fun QuickActionsGrid(
     onExpenseClick: () -> Unit,
     onManualClick: () -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val configuration = LocalConfiguration.current
+    val spacing = if (configuration.screenWidthDp < 360) 8.dp else 12.dp
+    val buttonHeight = if (configuration.screenWidthDp < 360) 44.dp else 50.dp
+    val fontSize = if (configuration.screenWidthDp < 360) 10.sp else 12.sp
+
+    Column(verticalArrangement = Arrangement.spacedBy(spacing)) {
         if (account?.parentAccountId == null) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(spacing)) {
                 ActionButton(
                     text = "DIARIA",
                     color = DailyButtonColor,
                     enabled = !isDailyRegistered,
                     modifier = Modifier.weight(1f),
                     isOutlined = true,
+                    height = buttonHeight,
+                    fontSize = fontSize,
                     onClick = onDailyClick
                 )
                 ActionButton(
@@ -315,15 +370,19 @@ fun QuickActionsGrid(
                     color = AlertButtonColor,
                     modifier = Modifier.weight(1f),
                     isOutlined = true,
+                    height = buttonHeight,
+                    fontSize = fontSize,
                     onClick = onAlertClick
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(spacing)) {
                 ActionButton(
                     text = "EXTERNO (+)",
                     color = ExternalButtonColor,
                     modifier = Modifier.weight(1f),
                     isOutlined = true,
+                    height = buttonHeight,
+                    fontSize = fontSize,
                     onClick = onExternalClick
                 )
                 ActionButton(
@@ -331,6 +390,8 @@ fun QuickActionsGrid(
                     color = ExpenseButtonColor,
                     modifier = Modifier.weight(1f),
                     isOutlined = true,
+                    height = buttonHeight,
+                    fontSize = fontSize,
                     onClick = onExpenseClick
                 )
             }
@@ -340,6 +401,8 @@ fun QuickActionsGrid(
             color = FortPurple,
             modifier = Modifier.fillMaxWidth(),
             isOutlined = true,
+            height = buttonHeight,
+            fontSize = fontSize,
             onClick = onManualClick
         )
     }
@@ -352,6 +415,8 @@ fun ActionButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     isOutlined: Boolean = false,
+    height: androidx.compose.ui.unit.Dp = 50.dp,
+    fontSize: androidx.compose.ui.unit.TextUnit = 12.sp,
     onClick: () -> Unit
 ) {
     val displayColor = if (enabled) color else Color.Gray // Gris si está deshabilitado
@@ -359,7 +424,7 @@ fun ActionButton(
     if (isOutlined) {
         OutlinedButton(
             onClick = onClick,
-            modifier = modifier.height(50.dp),
+            modifier = modifier.height(height),
             enabled = enabled,
             shape = MaterialTheme.shapes.small,
             border = androidx.compose.foundation.BorderStroke(2.dp, displayColor),
@@ -368,17 +433,17 @@ fun ActionButton(
                 disabledContentColor = Color.Gray
             )
         ) {
-            Text(text, fontWeight = FontWeight.Black, fontSize = 12.sp)
+            Text(text, fontWeight = FontWeight.Black, fontSize = fontSize, maxLines = 1)
         }
     } else {
         Button(
             onClick = onClick,
-            modifier = modifier.height(50.dp),
+            modifier = modifier.height(height),
             enabled = enabled,
             shape = MaterialTheme.shapes.small,
             colors = ButtonDefaults.buttonColors(containerColor = color)
         ) {
-            Text(text, fontWeight = FontWeight.Black, fontSize = 12.sp)
+            Text(text, fontWeight = FontWeight.Black, fontSize = fontSize, maxLines = 1)
         }
     }
 }
@@ -557,7 +622,7 @@ private fun ExpensesPieContent(data: Map<String, Int>, totalExpenses: Int = 0) {
 }
 
 @Composable
-fun RelationItem(relation: DependentRelation, onClick: () -> Unit, onEditName: () -> Unit) {
+fun RelationItem(relation: DependentRelation, onClick: () -> Unit, onEditName: () -> Unit, onDelete: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = StwCardSurface),
@@ -582,6 +647,9 @@ fun RelationItem(relation: DependentRelation, onClick: () -> Unit, onEditName: (
                 IconButton(onClick = onEditName, modifier = Modifier.size(24.dp)) {
                     Icon(Icons.Default.Edit, contentDescription = "Editar", tint = FortAccent, modifier = Modifier.size(16.dp))
                 }
+                IconButton(onClick = onDelete, modifier = Modifier.size(24.dp)) {
+                    Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = SpendRed, modifier = Modifier.size(16.dp))
+                }
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text("BALANCE TOTAL", fontSize = 10.sp, color = VBucksSilver)
@@ -591,6 +659,32 @@ fun RelationItem(relation: DependentRelation, onClick: () -> Unit, onEditName: (
                     fontWeight = FontWeight.Black,
                     fontSize = 16.sp
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun DeletedDependentItem(
+    account: Account,
+    onRestore: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color.Gray.copy(alpha = 0.05f)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.Gray.copy(alpha = 0.1f))
+    ) {
+        Row(
+            modifier = Modifier.padding(8.dp).fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(account.name.uppercase(), style = MaterialTheme.typography.bodySmall, color = Color.Gray, fontWeight = FontWeight.Bold)
+                Text("OCULTA", fontSize = 8.sp, color = Color.Gray)
+            }
+            IconButton(onClick = onRestore, modifier = Modifier.size(24.dp)) {
+                Icon(Icons.Default.Restore, contentDescription = "Restaurar", tint = FortAccent.copy(alpha = 0.7f), modifier = Modifier.size(16.dp))
             }
         }
     }
@@ -660,8 +754,22 @@ fun DistributionHistoryDialog(title: String, transactions: List<Transaction>, on
 @Composable
 fun AddDependentDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     var name by remember { mutableStateOf("") }
+    val focusManager = LocalFocusManager.current
     AlertDialog(onDismissRequest = onDismiss, title = { Text("NUEVO DEPENDIENTE", fontWeight = FontWeight.Black) },
-        text = { OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Nombre") }, modifier = Modifier.fillMaxWidth()) },
+        text = { 
+            OutlinedTextField(
+                value = name, 
+                onValueChange = { name = it }, 
+                label = { Text("Nombre") }, 
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = {
+                    focusManager.clearFocus()
+                    onConfirm(name)
+                }),
+                modifier = Modifier.fillMaxWidth()
+            ) 
+        },
         confirmButton = { Button(onClick = { onConfirm(name) }) { Text("CREAR") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("CANCELAR") } })
 }
@@ -669,8 +777,22 @@ fun AddDependentDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
 @Composable
 fun RenameAccountDialog(initialName: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     var name by remember { mutableStateOf(initialName) }
+    val focusManager = LocalFocusManager.current
     AlertDialog(onDismissRequest = onDismiss, title = { Text("RENOMBRAR", fontWeight = FontWeight.Black) },
-        text = { OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Nombre") }, modifier = Modifier.fillMaxWidth()) },
+        text = { 
+            OutlinedTextField(
+                value = name, 
+                onValueChange = { name = it }, 
+                label = { Text("Nombre") }, 
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = {
+                    focusManager.clearFocus()
+                    onConfirm(name)
+                }),
+                modifier = Modifier.fillMaxWidth()
+            ) 
+        },
         confirmButton = { Button(onClick = { onConfirm(name) }) { Text("OK") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("NO") } })
 }

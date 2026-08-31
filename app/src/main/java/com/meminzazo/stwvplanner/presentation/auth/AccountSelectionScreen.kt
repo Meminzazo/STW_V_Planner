@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
@@ -13,16 +14,25 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.meminzazo.stwvplanner.domain.model.Account
 import com.meminzazo.stwvplanner.presentation.dashboard.DashboardViewModel
+import com.meminzazo.stwvplanner.presentation.theme.FortAccent
+import com.meminzazo.stwvplanner.presentation.theme.SpendRed
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,8 +41,15 @@ fun AccountSelectionScreen(
     onAccountSelected: (Long) -> Unit,
     snackbarHostState: SnackbarHostState
 ) {
+    val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val titleFontSize = if (configuration.screenWidthDp < 360) 18.sp else 22.sp
+
     val accounts by viewModel.accounts.collectAsState()
+    val deletedAccounts by viewModel.deletedAccounts.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val isLocalMode by viewModel.isLocalMode.collectAsState()
+    var isGuestBannerMinimized by remember { mutableStateOf(false) }
     var showAddAccountDialog by remember { mutableStateOf(false) }
     var showRestoreConfirm by remember { mutableStateOf(false) }
     var showCloudMenu by remember { mutableStateOf(false) }
@@ -126,7 +143,7 @@ fun AccountSelectionScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Selecciona tu Cuenta", fontWeight = FontWeight.Bold) },
+                title = { Text("MIS CUENTAS", fontWeight = FontWeight.Bold, fontSize = titleFontSize) },
                 actions = {
                     if (isLoading) {
                         CircularProgressIndicator(
@@ -134,7 +151,7 @@ fun AccountSelectionScreen(
                             strokeWidth = 2.dp,
                             color = MaterialTheme.colorScheme.primary
                         )
-                    } else {
+                    } else if (!isLocalMode) {
                         Box {
                             IconButton(onClick = { showCloudMenu = true }) {
                                 Icon(Icons.Default.Cloud, contentDescription = "Nube")
@@ -208,12 +225,74 @@ fun AccountSelectionScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            if (isLocalMode) {
+                item {
+                    if (isGuestBannerMinimized) {
+                        // Banner minimizado: solo un texto pequeño y clickeable
+                        Text(
+                            text = "☁️ ACTIVAR RESPALDO EN LA NUBE",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { isGuestBannerMinimized = false }
+                                .padding(vertical = 4.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.secondary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    } else {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                        ) {
+                            Column(Modifier.padding(16.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Modo Invitado Activo", fontWeight = FontWeight.Bold)
+                                    TextButton(onClick = { isGuestBannerMinimized = true }) {
+                                        Text("OCULTAR", style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                                Text("Tus datos no están respaldados en la nube.", style = MaterialTheme.typography.bodySmall)
+                                Spacer(Modifier.height(8.dp))
+                                Button(
+                                    onClick = { viewModel.onUpgradeToGoogle(context) },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("VINCULAR CON GOOGLE")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             items(accounts) { account ->
                 AccountItem(
                     account = account,
                     onClick = { onAccountSelected(account.id) },
                     onDelete = { viewModel.onDeleteAccountClick(account.id) }
                 )
+            }
+
+            if (deletedAccounts.isNotEmpty()) {
+                item {
+                    Spacer(Modifier.height(24.dp))
+                    Text(
+                        "GESTIONAR CUENTAS OCULTAS", 
+                        style = MaterialTheme.typography.labelSmall, 
+                        color = Color.Gray,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+                items(deletedAccounts) { account ->
+                    DeletedAccountItem(
+                        account = account,
+                        onRestore = { viewModel.onRestoreAccountClick(account.id) }
+                    )
+                }
             }
         }
     }
@@ -286,11 +365,38 @@ fun AccountItem(
 }
 
 @Composable
+fun DeletedAccountItem(
+    account: Account,
+    onRestore: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color.Gray.copy(alpha = 0.1f)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.Gray.copy(alpha = 0.2f))
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(account.name, style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                Text("OCULTA", fontSize = 10.sp, color = Color.Gray)
+            }
+            IconButton(onClick = onRestore, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Default.Restore, contentDescription = "Restaurar", tint = FortAccent)
+            }
+        }
+    }
+}
+
+@Composable
 fun AddAccountDialog(
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
+    val focusManager = LocalFocusManager.current
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -301,6 +407,12 @@ fun AddAccountDialog(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("Nombre de la cuenta") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = {
+                        focusManager.clearFocus()
+                        onConfirm(name)
+                    }),
                     modifier = Modifier.fillMaxWidth()
                 )
             }

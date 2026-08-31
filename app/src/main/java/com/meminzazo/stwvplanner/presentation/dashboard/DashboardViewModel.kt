@@ -1,7 +1,16 @@
 package com.meminzazo.stwvplanner.presentation.dashboard
 
+import android.content.Context
+import android.content.ContextWrapper
+import androidx.activity.ComponentActivity
+import androidx.credentials.CredentialManager
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.GetCredentialResponse
+import androidx.credentials.exceptions.GetCredentialException
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.meminzazo.stwvplanner.domain.model.Account
 import com.meminzazo.stwvplanner.domain.model.Transaction
 import com.meminzazo.stwvplanner.domain.model.TransactionType
@@ -10,116 +19,119 @@ import com.meminzazo.stwvplanner.domain.repository.AuthRepository
 import com.meminzazo.stwvplanner.domain.repository.SyncRepository
 import com.meminzazo.stwvplanner.domain.repository.VBucksRepository
 import com.meminzazo.stwvplanner.domain.usecase.AddAccountUseCase
-import com.meminzazo.stwvplanner.domain.usecase.AddTransactionUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/**
- * ViewModel central para la gestión de cuentas y sincronización en la nube.
- */
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     private val repository: VBucksRepository,
     private val syncRepository: SyncRepository,
     private val authRepository: AuthRepository,
-    private val addTransactionUseCase: AddTransactionUseCase,
     private val addAccountUseCase: AddAccountUseCase
 ) : ViewModel() {
 
-    // Lista de cuentas principales para el Dashboard
     val accounts: StateFlow<List<Account>> = repository.getMainAccounts()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Todas las cuentas (necesario para filtrar dependientes localmente)
+    val deletedAccounts: StateFlow<List<Account>> = repository.getDeletedMainAccounts()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val allAccounts: StateFlow<List<Account>> = repository.getAccounts()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading = _isLoading.asStateFlow()
 
-    private var lastActionTime = 0L
-    private val ACTION_COOLDOWN = 15000L // 15 segundos entre peticiones de nube
+    private val _isLocalMode = MutableStateFlow(false)
+    val isLocalMode = _isLocalMode.asStateFlow()
 
-    // Eventos de una sola vez (errores o avisos)
+    private var lastActionTime = 0L
+    private val CLOUD_COOLDOWN = 60000L 
+
+    private var importFailCount = 0
+    private var lockoutUntil = 0L
+
     private val _uiEvent = MutableSharedFlow<UiEvent>()
     val uiEvent = _uiEvent.asSharedFlow()
 
-    /**
-     * Verifica si se puede realizar una acción de red (Cooldown).
-     */
-    private fun isActionAllowed(): Boolean {
+    init {
+        viewModelScope.launch {
+            _isLocalMode.value = authRepository.isUserLocal()
+        }
+    }
+
+    private fun isCloudActionAllowed(): Boolean {
+        if (_isLocalMode.value) {
+            viewModelScope.launch { _uiEvent.emit(UiEvent.ShowError("La nube está deshabilitada en modo local")) }
+            return false
+        }
         val now = System.currentTimeMillis()
-        if (now - lastActionTime < ACTION_COOLDOWN) {
-            viewModelScope.launch {
-                _uiEvent.emit(UiEvent.ShowError("Por favor, espera unos segundos"))
-            }
+        if (now - lastActionTime < CLOUD_COOLDOWN) {
+            val wait = ((CLOUD_COOLDOWN - (now - lastActionTime)) / 1000) + 1
+            viewModelScope.launch { _uiEvent.emit(UiEvent.ShowError("Seguridad: Espera $wait segundos")) }
             return false
         }
         lastActionTime = now
         return true
     }
 
+    private fun isImportAllowed(): Boolean {
+        val now = System.currentTimeMillis()
+        if (now < lockoutUntil) {
+            val wait = ((lockoutUntil - now) / 60000) + 1
+            viewModelScope.launch { _uiEvent.emit(UiEvent.ShowError("Bloqueo de seguridad: intenta en $wait minutos")) }
+            return false
+        }
+        return true
+    }
+
+    private fun Context.findActivity(): ComponentActivity? {
+        var context = this
+        while (context is ContextWrapper) {
+            if (context is ComponentActivity) return context
+            context = context.baseContext
+        }
+        return null
+    }
+
     fun onSignOutClick() {
         viewModelScope.launch { authRepository.signOut() }
     }
 
-    /**
-     * Sincronización diferencial (solo lo pendiente).
-     */
     fun onSyncClick() {
-        if (!isActionAllowed()) return
-        viewModelScope.launch {
-            _isLoading.value = true
-            val user = authRepository.currentUser.first()
-            if (user != null) {
-                val result = syncRepository.syncAll(user.id)
-                val message = if (result.isSuccess) "Sincronización completada" 
-                              else "Error: ${result.exceptionOrNull()?.message}"
-                _uiEvent.emit(UiEvent.ShowError(message))
-            }
-            _isLoading.value = false
-        }
+        onBackupClick()
     }
 
-    /**
-     * Respaldo completo de la DB actual.
-     */
     fun onBackupClick() {
-        if (!isActionAllowed()) return
+        if (!isCloudActionAllowed()) return
         viewModelScope.launch {
             _isLoading.value = true
             val user = authRepository.currentUser.first()
             if (user != null) {
                 val result = syncRepository.backupFullDatabase(user.id)
-                _uiEvent.emit(UiEvent.ShowError(if (result.isSuccess) "Respaldo total guardado" else "Error al respaldar"))
+                _uiEvent.emit(UiEvent.ShowError(if (result.isSuccess) "Respaldo total guardado" else result.exceptionOrNull()?.message ?: "Error al respaldar"))
             }
             _isLoading.value = false
         }
     }
 
-    /**
-     * Restauración total (borra local y pone lo de la nube).
-     */
     fun onRestoreClick() {
-        if (!isActionAllowed()) return
+        if (!isCloudActionAllowed()) return
         viewModelScope.launch {
             _isLoading.value = true
             val user = authRepository.currentUser.first()
             if (user != null) {
                 val result = syncRepository.restoreFullDatabase(user.id)
-                _uiEvent.emit(UiEvent.ShowError(if (result.isSuccess) "Restauración completada" else "Error al restaurar"))
+                _uiEvent.emit(UiEvent.ShowError(if (result.isSuccess) "Restauración completada" else result.exceptionOrNull()?.message ?: "Error al restaurar"))
             }
             _isLoading.value = false
         }
     }
 
-    /**
-     * Genera un código de 6 dígitos para que un amigo descargue los datos.
-     */
     fun onGenerateTransferCode() {
-        if (!isActionAllowed()) return
+        if (!isCloudActionAllowed()) return
         viewModelScope.launch {
             _isLoading.value = true
             val user = authRepository.currentUser.first()
@@ -135,17 +147,67 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Importa datos desde un código de transferencia de un amigo.
-     */
     fun onImportWithCode(code: String) {
-        if (!isActionAllowed()) return
+        if (!isImportAllowed()) return
         viewModelScope.launch {
             if (code.length != 8) return@launch
             _isLoading.value = true
             val result = syncRepository.restoreFromTransferCode(code)
-            _uiEvent.emit(UiEvent.ShowError(if (result.isSuccess) "Registros importados con éxito" else "Código inválido o expirado"))
+            if (result.isSuccess) {
+                importFailCount = 0
+                _uiEvent.emit(UiEvent.ShowError("Registros importados con éxito"))
+            } else {
+                importFailCount++
+                if (importFailCount >= 3) {
+                    lockoutUntil = System.currentTimeMillis() + 900000L 
+                    _uiEvent.emit(UiEvent.ShowError("Seguridad: Demasiados fallos. Bloqueo de 15 min activado."))
+                } else {
+                    _uiEvent.emit(UiEvent.ShowError("Código inválido o expirado"))
+                }
+            }
             _isLoading.value = false
+        }
+    }
+
+    fun onUpgradeToGoogle(context: Context) {
+        val activity = context.findActivity()
+        if (activity == null) {
+            viewModelScope.launch { _uiEvent.emit(UiEvent.ShowError("Error interno: No se encontró la actividad")) }
+            return
+        }
+
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val credentialManager = CredentialManager.create(activity)
+                val googleIdOption = GetGoogleIdOption.Builder()
+                    .setFilterByAuthorizedAccounts(false)
+                    .setServerClientId(context.getString(com.meminzazo.stwvplanner.R.string.default_web_client_id))
+                    .setAutoSelectEnabled(false) // Desactivamos auto-select para forzar el diálogo
+                    .build()
+
+                val request = GetCredentialRequest.Builder()
+                    .addCredentialOption(googleIdOption)
+                    .build()
+
+                val result = credentialManager.getCredential(activity, request)
+                val credential = result.credential
+                if (credential is GoogleIdTokenCredential) {
+                    val res = authRepository.signInWithGoogle(credential.idToken)
+                    if (res.isSuccess) {
+                        _isLocalMode.value = false
+                        _uiEvent.emit(UiEvent.ShowError("¡Cuenta vinculada con éxito!"))
+                    } else {
+                        _uiEvent.emit(UiEvent.ShowError("Firebase: ${res.exceptionOrNull()?.message}"))
+                    }
+                }
+            } catch (e: GetCredentialException) {
+                _uiEvent.emit(UiEvent.ShowError("Google: ${e.message}"))
+            } catch (e: Exception) {
+                _uiEvent.emit(UiEvent.ShowError("Error inesperado: ${e.message}"))
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 
@@ -176,7 +238,7 @@ class DashboardViewModel @Inject constructor(
                 description = "Misión Diaria",
                 date = System.currentTimeMillis()
             )
-            addTransactionUseCase(transaction)
+            repository.insertTransaction(transaction)
         }
     }
 
@@ -192,10 +254,6 @@ class DashboardViewModel @Inject constructor(
             )
             repository.insertTransaction(transaction)
         }
-    }
-
-    fun onDeleteAccountClick(accountId: Long) {
-        viewModelScope.launch { repository.deleteAccount(accountId) }
     }
 
     fun onManualEntryClick(
@@ -224,6 +282,14 @@ class DashboardViewModel @Inject constructor(
             )
             repository.insertTransaction(transaction)
         }
+    }
+
+    fun onDeleteAccountClick(accountId: Long) {
+        viewModelScope.launch { repository.deleteAccount(accountId) }
+    }
+
+    fun onRestoreAccountClick(accountId: Long) {
+        viewModelScope.launch { repository.restoreAccount(accountId) }
     }
 
     sealed class UiEvent {

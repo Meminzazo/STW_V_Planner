@@ -1,6 +1,8 @@
 package com.meminzazo.stwvplanner.presentation.auth
 
 import android.content.Context
+import android.content.ContextWrapper
+import androidx.activity.ComponentActivity
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.GetCredentialResponse
@@ -26,40 +28,67 @@ class LoginViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(false)
     val isLoading = _isLoading.asStateFlow()
 
-    private val _isLoginMode = MutableStateFlow(true)
-    val isLoginMode = _isLoginMode.asStateFlow()
-
-    private val _email = MutableStateFlow("")
-    val email = _email.asStateFlow()
-
-    private val _password = MutableStateFlow("")
-    val password = _password.asStateFlow()
-
     private val _uiEvent = MutableSharedFlow<UiEvent>()
     val uiEvent = _uiEvent.asSharedFlow()
 
-    fun onEmailChange(value: String) { _email.value = value }
-    fun onPasswordChange(value: String) { _password.value = value }
-    fun toggleAuthMode() { _isLoginMode.value = !_isLoginMode.value }
+    private var lastActionTime = 0L
+    private val AUTH_COOLDOWN = 3000L // 3 segundos entre intentos de login
+
+    private fun isActionAllowed(): Boolean {
+        val now = System.currentTimeMillis()
+        if (now - lastActionTime < AUTH_COOLDOWN) {
+            viewModelScope.launch { _uiEvent.emit(UiEvent.ShowError("Por favor, espera un momento")) }
+            return false
+        }
+        lastActionTime = now
+        return true
+    }
+
+    private fun Context.findActivity(): ComponentActivity? {
+        var context = this
+        while (context is ContextWrapper) {
+            if (context is ComponentActivity) return context
+            context = context.baseContext
+        }
+        return null
+    }
+
+    fun onContinueAsGuest() {
+        if (!isActionAllowed()) return
+        viewModelScope.launch {
+            _isLoading.value = true
+            authRepository.signInLocally()
+            _isLoading.value = false
+        }
+    }
 
     fun onSignInWithGoogle(context: Context) {
+        if (!isActionAllowed()) return
+        val activity = context.findActivity()
+        if (activity == null) {
+            viewModelScope.launch { _uiEvent.emit(UiEvent.ShowError("Error interno: No se encontró la actividad")) }
+            return
+        }
+
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                val credentialManager = CredentialManager.create(context)
+                val credentialManager = CredentialManager.create(activity)
+                
                 val googleIdOption = GetGoogleIdOption.Builder()
                     .setFilterByAuthorizedAccounts(false)
                     .setServerClientId(context.getString(com.meminzazo.stwvplanner.R.string.default_web_client_id))
+                    .setAutoSelectEnabled(false) // Desactivamos auto-select para evitar cancelaciones automáticas
                     .build()
 
                 val request = GetCredentialRequest.Builder()
                     .addCredentialOption(googleIdOption)
                     .build()
 
-                val result = credentialManager.getCredential(context, request)
+                val result = credentialManager.getCredential(activity, request)
                 handleGoogleSignInResult(result)
             } catch (e: GetCredentialException) {
-                _uiEvent.emit(UiEvent.ShowError("Error: ${e.message}"))
+                _uiEvent.emit(UiEvent.ShowError("Google: ${e.message}"))
             } catch (e: Exception) {
                 _uiEvent.emit(UiEvent.ShowError("Error inesperado: ${e.message}"))
             } finally {
@@ -68,52 +97,15 @@ class LoginViewModel @Inject constructor(
         }
     }
 
-    fun onEmailAuthClick() {
-        if (_email.value.isBlank() || _password.value.isBlank()) {
-            viewModelScope.launch { _uiEvent.emit(UiEvent.ShowError("Completa todos los campos")) }
-            return
-        }
-        
-        viewModelScope.launch {
-            _isLoading.value = true
-            val result = if (_isLoginMode.value) {
-                authRepository.signInWithEmail(_email.value, _password.value)
-            } else {
-                authRepository.signUpWithEmail(_email.value, _password.value)
-            }
-            
-            result.onFailure {
-                _uiEvent.emit(UiEvent.ShowError(it.message ?: "Error en autenticación"))
-            }
-            _isLoading.value = false
-        }
-    }
-
-    fun onForgotPasswordClick() {
-        if (_email.value.isBlank()) {
-            viewModelScope.launch { _uiEvent.emit(UiEvent.ShowError("Ingresa tu correo para recuperar la contraseña")) }
-            return
-        }
-        viewModelScope.launch {
-            _isLoading.value = true
-            val result = authRepository.sendPasswordResetEmail(_email.value)
-            _uiEvent.emit(UiEvent.ShowError(if (result.isSuccess) "Correo de recuperación enviado" else "Error al enviar correo"))
-            _isLoading.value = false
-        }
-    }
-
     private suspend fun handleGoogleSignInResult(result: GetCredentialResponse) {
         val credential = result.credential
-        val googleIdTokenCredential = try {
-            if (credential is GoogleIdTokenCredential) credential
-            else GoogleIdTokenCredential.createFrom(credential.data)
-        } catch (e: Exception) { null }
-
-        if (googleIdTokenCredential != null) {
-            val authResult = authRepository.signInWithGoogle(googleIdTokenCredential.idToken)
-            authResult.onFailure { _uiEvent.emit(UiEvent.ShowError("Error: ${it.message}")) }
+        if (credential is GoogleIdTokenCredential) {
+            val res = authRepository.signInWithGoogle(credential.idToken)
+            if (res.isFailure) {
+                _uiEvent.emit(UiEvent.ShowError("Error al iniciar sesión: ${res.exceptionOrNull()?.message}"))
+            }
         } else {
-            _uiEvent.emit(UiEvent.ShowError("Tipo de credencial no reconocido"))
+            _uiEvent.emit(UiEvent.ShowError("Tipo de credencial no soportado"))
         }
     }
 

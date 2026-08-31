@@ -1,34 +1,41 @@
 package com.meminzazo.stwvplanner.data.repository
 
+import android.content.Context
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import com.meminzazo.stwvplanner.domain.model.User
 import com.meminzazo.stwvplanner.domain.repository.AuthRepository
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
 class AuthRepositoryImpl @Inject constructor(
-    private val firebaseAuth: FirebaseAuth
+    private val firebaseAuth: FirebaseAuth,
+    @ApplicationContext private val context: Context
 ) : AuthRepository {
 
-    override val currentUser: Flow<User?> = callbackFlow {
-        val listener = FirebaseAuth.AuthStateListener { auth ->
-            val firebaseUser = auth.currentUser
-            val user = firebaseUser?.let {
-                User(
-                    id = it.uid,
-                    email = it.email,
-                    displayName = it.displayName ?: it.email?.split("@")?.get(0),
-                    photoUrl = it.photoUrl?.toString()
-                )
+    private val prefs = context.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)
+    private val _localModeFlow = MutableStateFlow(prefs.getBoolean("is_local_mode", false))
+
+    override val currentUser: Flow<User?> = combine(
+        callbackFlow {
+            val authListener = FirebaseAuth.AuthStateListener { auth ->
+                trySend(auth.currentUser)
             }
-            trySend(user)
+            firebaseAuth.addAuthStateListener(authListener)
+            awaitClose { firebaseAuth.removeAuthStateListener(authListener) }
+        },
+        _localModeFlow
+    ) { firebaseUser, isLocal ->
+        if (firebaseUser != null) {
+            mapFirebaseUser(firebaseUser)
+        } else if (isLocal) {
+            User(id = "local_user", email = "offline@local", displayName = "Invitado", photoUrl = null)
+        } else {
+            null
         }
-        firebaseAuth.addAuthStateListener(listener)
-        awaitClose { firebaseAuth.removeAuthStateListener(listener) }
     }
 
     override suspend fun signInWithGoogle(idToken: String): Result<User> {
@@ -36,43 +43,30 @@ class AuthRepositoryImpl @Inject constructor(
             val credential = GoogleAuthProvider.getCredential(idToken, null)
             val result = firebaseAuth.signInWithCredential(credential).await()
             val firebaseUser = result.user ?: return Result.failure(Exception("Usuario nulo"))
+            setLocalMode(false)
             Result.success(mapFirebaseUser(firebaseUser))
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    override suspend fun signInWithEmail(email: String, password: String): Result<User> {
-        return try {
-            val result = firebaseAuth.signInWithEmailAndPassword(email, password).await()
-            val firebaseUser = result.user ?: return Result.failure(Exception("Error en inicio de sesión"))
-            Result.success(mapFirebaseUser(firebaseUser))
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+    override suspend fun signInLocally(): Result<User> {
+        setLocalMode(true)
+        return Result.success(User(id = "local_user", email = "offline@local", displayName = "Invitado", photoUrl = null))
     }
 
-    override suspend fun signUpWithEmail(email: String, password: String): Result<User> {
-        return try {
-            val result = firebaseAuth.createUserWithEmailAndPassword(email, password).await()
-            val firebaseUser = result.user ?: return Result.failure(Exception("Error al crear cuenta"))
-            Result.success(mapFirebaseUser(firebaseUser))
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    override suspend fun sendPasswordResetEmail(email: String): Result<Unit> {
-        return try {
-            firebaseAuth.sendPasswordResetEmail(email).await()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+    override suspend fun isUserLocal(): Boolean {
+        return _localModeFlow.value
     }
 
     override suspend fun signOut() {
         firebaseAuth.signOut()
+        setLocalMode(false)
+    }
+
+    private fun setLocalMode(enabled: Boolean) {
+        prefs.edit().putBoolean("is_local_mode", enabled).apply()
+        _localModeFlow.value = enabled
     }
 
     private fun mapFirebaseUser(firebaseUser: com.google.firebase.auth.FirebaseUser): User {

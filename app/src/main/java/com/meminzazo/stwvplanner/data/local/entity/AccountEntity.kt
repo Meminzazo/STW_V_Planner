@@ -24,6 +24,7 @@ data class AccountEntity(
     val isMain: Boolean = false,
     val parentAccountId: Long? = null,
     val parentSyncId: String? = null,
+    val isDeleted: Boolean = false,
     val isSynced: Boolean = false,
     val lastUpdated: Long = System.currentTimeMillis()
 )

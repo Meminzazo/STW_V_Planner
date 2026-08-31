@@ -30,6 +30,13 @@ class VBucksRepositoryImpl @Inject constructor(
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
+    override fun getDeletedMainAccounts(): Flow<List<Account>> {
+        return accountDao.getDeletedMainAccounts().flatMapLatest { entities ->
+            mapEntitiesToDomain(entities)
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
     override fun getAccountsByParent(parentId: Long): Flow<List<Account>> {
         return accountDao.getAccountsByParent(parentId).flatMapLatest { entities ->
             mapEntitiesToDomain(entities)
@@ -37,8 +44,14 @@ class VBucksRepositoryImpl @Inject constructor(
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
+    override fun getDeletedAccountsByParent(parentId: Long): Flow<List<Account>> {
+        return accountDao.getDeletedAccountsByParent(parentId).flatMapLatest { entities ->
+            mapEntitiesToDomain(entities)
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
     override fun getAccounts(): Flow<List<Account>> {
-        // Por defecto devolvemos todas, pero el mapper se encargará de isMain
         return accountDao.getMainAccounts().flatMapLatest { entities ->
             mapEntitiesToDomain(entities)
         }
@@ -56,7 +69,6 @@ class VBucksRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getAccountById(id: Long): Account? {
-        // Implementación simplificada sin balance para el getById (o se puede añadir)
         return accountDao.getAccountById(id)?.toDomain()
     }
 
@@ -71,7 +83,11 @@ class VBucksRepositoryImpl @Inject constructor(
     }
 
     override suspend fun deleteAccount(id: Long) {
-        accountDao.deleteAccount(id)
+        accountDao.softDeleteAccount(id)
+    }
+
+    override suspend fun restoreAccount(id: Long) {
+        accountDao.restoreAccount(id)
     }
 
     override fun getTransactions(accountId: Long?): Flow<List<Transaction>> {

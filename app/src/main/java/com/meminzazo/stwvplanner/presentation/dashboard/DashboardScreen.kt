@@ -16,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -139,6 +140,10 @@ fun AccountCard(
     var manualEntryInitialType by remember { mutableStateOf<TransactionType?>(null) }
     var manualEntryInitialSource by remember { mutableStateOf<VBucksSource?>(null) }
 
+    val configuration = LocalConfiguration.current
+    val buttonFontSize = if (configuration.screenWidthDp < 360) 10.sp else 12.sp
+    val buttonHeight = if (configuration.screenWidthDp < 360) 40.dp else 44.dp
+
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
@@ -227,23 +232,23 @@ fun AccountCard(
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     onClick = { onAddDaily(100) },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).height(buttonHeight),
                     colors = ButtonDefaults.buttonColors(containerColor = DailyButtonColor),
                     shape = MaterialTheme.shapes.small
                 ) {
-                    Text("+100 D", fontWeight = FontWeight.Black, fontSize = 12.sp)
+                    Text("+100 D", fontWeight = FontWeight.Black, fontSize = buttonFontSize, maxLines = 1)
                 }
                 Button(
                     onClick = { onAddAlert() },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).height(buttonHeight),
                     colors = ButtonDefaults.buttonColors(containerColor = AlertButtonColor),
                     shape = MaterialTheme.shapes.small
                 ) {
-                    Text("+50 A", fontWeight = FontWeight.Black, fontSize = 12.sp)
+                    Text("+50 A", fontWeight = FontWeight.Black, fontSize = buttonFontSize, maxLines = 1)
                 }
                 IconButton(
                     onClick = { showManualEntryDialog = true },
-                    modifier = Modifier.size(40.dp).background(FortPurple, MaterialTheme.shapes.small)
+                    modifier = Modifier.size(buttonHeight).background(FortPurple, MaterialTheme.shapes.small)
                 ) {
                     Icon(Icons.Default.Edit, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                 }

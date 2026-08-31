@@ -19,70 +19,8 @@ class SyncRepositoryImpl @Inject constructor(
 ) : SyncRepository {
 
     override suspend fun syncAll(userId: String): Result<Unit> {
-        return try {
-            var firstError: Exception? = null
-
-            // 1. SUBIDA (Limitada a 50 items para evitar abuso de cuota)
-            val unsyncedAccounts = accountDao.getUnsyncedAccounts().take(10)
-            for (entity in unsyncedAccounts) {
-                uploadAccount(userId, entity)
-                    .onSuccess { accountDao.updateAccount(entity.copy(isSynced = true)) }
-                    .onFailure { if (firstError == null) firstError = it as Exception }
-            }
-
-            val unsyncedTransactions = transactionDao.getUnsyncedTransactions().take(50)
-            for (entity in unsyncedTransactions) {
-                val updatedEntity = if (entity.accountSyncId == null) {
-                    val acc = accountDao.getAccountById(entity.accountId)
-                    entity.copy(accountSyncId = acc?.syncId)
-                } else entity
-
-                uploadTransaction(userId, updatedEntity)
-                    .onSuccess { transactionDao.updateTransaction(updatedEntity.copy(isSynced = true)) }
-                    .onFailure { if (firstError == null) firstError = it as Exception }
-            }
-
-            // 2. DESCARGA E INTEGRACIÓN
-            downloadAccounts(userId, 0).onSuccess { remoteAccounts ->
-                for (remote in remoteAccounts) {
-                    val local = accountDao.getAccountBySyncId(remote.syncId)
-                    if (local == null) {
-                        accountDao.insertAccount(remote.copy(id = 0, isSynced = true))
-                    } else if (remote.lastUpdated > local.lastUpdated) {
-                        accountDao.updateAccount(remote.copy(id = local.id, isSynced = true))
-                    }
-                }
-            }
-
-            // Reparar relaciones localmente
-            val allLocalAccounts = accountDao.getAllAccounts()
-            for (acc in allLocalAccounts) {
-                if (acc.parentSyncId != null && acc.parentAccountId == null) {
-                    val parent = allLocalAccounts.find { it.syncId == acc.parentSyncId }
-                    if (parent != null) {
-                        accountDao.updateAccount(acc.copy(parentAccountId = parent.id))
-                    }
-                }
-            }
-
-            downloadTransactions(userId, 0).onSuccess { remoteTransactions ->
-                for (remote in remoteTransactions) {
-                    val local = transactionDao.getTransactionBySyncId(remote.syncId)
-                    val parentAccount = accountDao.getAccountBySyncId(remote.accountSyncId ?: "")
-                    if (parentAccount != null) {
-                        if (local == null) {
-                            transactionDao.insertTransaction(remote.copy(id = 0, accountId = parentAccount.id, isSynced = true))
-                        } else if (remote.lastUpdated > local.lastUpdated) {
-                            transactionDao.updateTransaction(remote.copy(id = local.id, accountId = parentAccount.id, isSynced = true))
-                        }
-                    }
-                }
-            }
-
-            if (firstError != null) Result.failure(firstError!!) else Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+        // En v3.0 el syncAll automático está deshabilitado para evitar spam de cuota.
+        return Result.success(Unit)
     }
 
     override suspend fun restoreFullDatabase(userId: String): Result<Unit> {
@@ -110,6 +48,12 @@ class SyncRepositoryImpl @Inject constructor(
     override suspend fun backupFullDatabase(userId: String): Result<Unit> {
         return try {
             val json = backupToJson()
+            
+            // Protección de cuota: Límite de 2MB por respaldo
+            if (json.length > 2_000_000) {
+                return Result.failure(Exception("Respaldo demasiado grande (>2MB). Elimina registros antiguos."))
+            }
+
             val chunkSize = 500_000
             if (json.length > chunkSize) {
                 val chunks = json.chunked(chunkSize)
@@ -128,11 +72,15 @@ class SyncRepositoryImpl @Inject constructor(
 
     override suspend fun generateTransferCode(userId: String): Result<String> {
         return try {
-            // Código numérico de 8 dígitos
             val charPool = "0123456789"
             val code = (1..8).map { charPool.random() }.joinToString("")
             
             val json = backupToJson()
+            // Protección de cuota: Límite de tamaño en transferencia también
+            if (json.length > 2_000_000) {
+                return Result.failure(Exception("Datos demasiado grandes para transferir"))
+            }
+
             firestore.collection("transfer_codes").document(code).set(mapOf("data" to json, "createdAt" to System.currentTimeMillis())).await()
             Result.success(code)
         } catch (e: Exception) {
@@ -145,12 +93,17 @@ class SyncRepositoryImpl @Inject constructor(
             val snapshot = firestore.collection("transfer_codes").document(code).get().await()
             if (!snapshot.exists()) return Result.failure(Exception("Código no encontrado"))
             val createdAt = snapshot.getLong("createdAt") ?: 0L
+            
+            // Caducidad de 1 hora para protección
             if (System.currentTimeMillis() - createdAt > 3600000L) {
                 firestore.collection("transfer_codes").document(code).delete()
                 return Result.failure(Exception("Código expirado (1h)"))
             }
             val json = snapshot.getString("data") ?: return Result.failure(Exception("Datos vacíos"))
+            
+            // Opcional: borrar el código tras su uso para evitar spam
             firestore.collection("transfer_codes").document(code).delete().await()
+            
             restoreFromJson(json)
         } catch (e: Exception) {
             Result.failure(e)

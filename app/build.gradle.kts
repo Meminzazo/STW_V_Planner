@@ -14,8 +14,8 @@ android {
         applicationId = "com.meminzazo.stwvplanner"
         minSdk = 28
         targetSdk = 36
-        versionCode = 2
-        versionName = "2.1"
+        versionCode = 3
+        versionName = "3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -35,6 +35,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -81,6 +82,8 @@ dependencies {
     implementation(libs.firebase.analytics)
     implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
+    implementation("com.google.firebase:firebase-appcheck-playintegrity")
+    implementation("com.google.firebase:firebase-appcheck-debug")
     implementation(libs.androidx.identity.credentials)
     implementation(libs.androidx.identity.credentials.play)
     implementation(libs.google.identity.id)

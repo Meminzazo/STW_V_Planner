@@ -2,13 +2,16 @@ package com.meminzazo.stwvplanner.presentation.common
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.meminzazo.stwvplanner.domain.model.Account
@@ -37,10 +40,18 @@ fun ManualEntryDialog(
     }
     var description by remember { mutableStateOf(transactionToEdit?.description ?: "") }
     var dateMillis by remember { mutableStateOf(transactionToEdit?.date ?: System.currentTimeMillis()) }
+    val focusManager = LocalFocusManager.current
 
     // Para gastos (GIFT)
     var selectedReceiverId by remember { mutableStateOf<Long?>(transactionToEdit?.receiverAccountId) }
     var selectedReceiverName by remember { mutableStateOf<String?>(transactionToEdit?.recipientAccountName) }
+
+    fun handleConfirm() {
+        val amountInt = amount.toIntOrNull() ?: 0
+        if (amountInt > 0) {
+            onConfirm(amountInt, type, source, description, dateMillis, selectedReceiverId, selectedReceiverName)
+        }
+    }
 
     var expandedSource by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
@@ -114,7 +125,11 @@ fun ManualEntryDialog(
                     value = amount,
                     onValueChange = { if (it.all { char -> char.isDigit() }) amount = it },
                     label = { Text("Monto (V-Bucks)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Next
+                    ),
+                    singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -192,6 +207,12 @@ fun ManualEntryDialog(
                     value = description,
                     onValueChange = { description = it },
                     label = { Text("Descripción (Opcional)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { 
+                        focusManager.clearFocus()
+                        handleConfirm() 
+                    }),
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -219,12 +240,7 @@ fun ManualEntryDialog(
         },
         confirmButton = {
             Button(
-                onClick = {
-                    val amountInt = amount.toIntOrNull() ?: 0
-                    if (amountInt > 0) {
-                        onConfirm(amountInt, type, source, description, dateMillis, selectedReceiverId, selectedReceiverName)
-                    }
-                },
+                onClick = ::handleConfirm,
                 enabled = amount.isNotBlank()
             ) {
                 Text("Guardar")

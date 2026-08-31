@@ -208,17 +208,10 @@ class AccountDetailViewModel @Inject constructor(
     val dependentAccounts = repository.getAccountsByParent(accountId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Balance de reparto equitativo entre TODOS los dependientes de esta cuenta.
-    // Los dependientes nunca regalan nada, solo reciben — así que el balance no
-    // es una relación bilateral con el padre, es una comparación entre hermanos:
-    // ¿qué tan parejo se ha repartido entre todos ellos?
-    //
-    // balance(D) = (total repartido entre todos los dependientes) − N × (recibido por D)
-    //
-    // Ejemplo con 2 dependientes que reciben 3700 y 2500 (total 6200, N=2):
-    //   balance(3700) = 6200 − 2×3700 = -1200
-    //   balance(2500) = 6200 − 2×2500 = +1200
-    // Si todos reciben lo mismo, cada balance da 0. Se generaliza solo a N cuentas.
+    val deletedDependents = repository.getDeletedAccountsByParent(accountId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Balance de Compensación Directa
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val dependentRelations = dependentAccounts.flatMapLatest { accounts ->
         if (accounts.isEmpty()) return@flatMapLatest flowOf(emptyList<DependentRelation>())
@@ -231,15 +224,15 @@ class AccountDetailViewModel @Inject constructor(
         }
 
         combine(perDependentFlows) { entries ->
-            val n = entries.size
             val totalAll = entries.sumOf { it.second.first }
             val monthlyAll = entries.sumOf { it.second.second }
+            
             entries.map { (dep, amounts) ->
                 val (totalReceived, monthlyReceived) = amounts
                 DependentRelation(
                     account = dep,
-                    totalBalance = totalAll - n * totalReceived,
-                    monthlyBalance = monthlyAll - n * monthlyReceived,
+                    totalBalance = totalAll - 2 * totalReceived,
+                    monthlyBalance = monthlyAll - 2 * monthlyReceived,
                     monthlyReceived = monthlyReceived
                 )
             }
@@ -250,6 +243,18 @@ class AccountDetailViewModel @Inject constructor(
         viewModelScope.launch {
             if (name.isBlank()) return@launch
             addAccountUseCase(name = name, parentAccountId = accountId)
+        }
+    }
+
+    fun onDeleteAccountClick(id: Long) {
+        viewModelScope.launch {
+            repository.deleteAccount(id)
+        }
+    }
+
+    fun onRestoreAccountClick(id: Long) {
+        viewModelScope.launch {
+            repository.restoreAccount(id)
         }
     }
 
