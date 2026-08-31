@@ -98,10 +98,10 @@ fun AccountSelectionScreen(
             title = { Text("Importar con Código") },
             text = {
                 Column {
-                    Text("Ingresa el código de 6 dígitos que te compartieron:")
+                    Text("Ingresa el código de 8 dígitos que te compartieron:")
                     OutlinedTextField(
                         value = code,
-                        onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) code = it },
+                        onValueChange = { if (it.length <= 8 && it.all { c -> c.isDigit() }) code = it },
                         label = { Text("Código") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
@@ -114,7 +114,7 @@ fun AccountSelectionScreen(
                         viewModel.onImportWithCode(code)
                         showImportCodeDialog = false
                     },
-                    enabled = code.length == 6
+                    enabled = code.length == 8
                 ) { Text("Importar") }
             },
             dismissButton = {

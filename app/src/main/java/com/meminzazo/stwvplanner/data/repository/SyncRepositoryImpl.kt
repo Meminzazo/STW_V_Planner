@@ -128,8 +128,8 @@ class SyncRepositoryImpl @Inject constructor(
 
     override suspend fun generateTransferCode(userId: String): Result<String> {
         return try {
-            // Código alfanumérico de 8 caracteres (Seguridad Industrial)
-            val charPool = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+            // Código numérico de 8 dígitos
+            val charPool = "0123456789"
             val code = (1..8).map { charPool.random() }.joinToString("")
             
             val json = backupToJson()

@@ -23,6 +23,7 @@ fun Account.toEntity(): AccountEntity = AccountEntity(
 
 fun TransactionEntity.toDomain(): Transaction = Transaction(
     id = id,
+    syncId = syncId,
     accountId = accountId,
     amount = amount,
     type = type,
@@ -38,6 +39,7 @@ fun TransactionEntity.toDomain(): Transaction = Transaction(
 
 fun Transaction.toEntity(): TransactionEntity = TransactionEntity(
     id = id,
+    syncId = syncId,
     accountId = accountId,
     amount = amount,
     type = type,

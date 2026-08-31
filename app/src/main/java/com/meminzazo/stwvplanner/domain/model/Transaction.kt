@@ -2,6 +2,7 @@ package com.meminzazo.stwvplanner.domain.model
 
 data class Transaction(
     val id: Long = 0,
+    val syncId: String = java.util.UUID.randomUUID().toString(),
     val accountId: Long,
     val amount: Int,
     val type: TransactionType,

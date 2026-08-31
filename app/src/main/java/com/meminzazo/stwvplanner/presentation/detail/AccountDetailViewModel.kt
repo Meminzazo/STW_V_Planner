@@ -14,7 +14,8 @@ import javax.inject.Inject
 data class DependentRelation(
     val account: Account,
     val totalBalance: Int,
-    val monthlyBalance: Int
+    val monthlyBalance: Int,
+    val monthlyReceived: Int
 )
 
 @HiltViewModel
@@ -168,6 +169,32 @@ class AccountDetailViewModel @Inject constructor(
         .map { transactions -> transactions.filter { it.type == TransactionType.SPEND } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Total de pavos gastados (egresos)
+    val totalExpenses = repository.getTransactions(accountId)
+        .map { transactions ->
+            transactions.filter { it.type == TransactionType.SPEND }.sumOf { it.amount }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val totalExpensesMensual = repository.getTransactionsInRange(accountId, startOfMonth, endOfMonth)
+        .map { transactions ->
+            transactions.filter { it.type == TransactionType.SPEND }.sumOf { it.amount }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    // Total de pavos ingresados (ingresos)
+    val totalIncome = repository.getTransactions(accountId)
+        .map { transactions ->
+            transactions.filter { it.type == TransactionType.EARN }.sumOf { it.amount }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val totalIncomeMensual = repository.getTransactionsInRange(accountId, startOfMonth, endOfMonth)
+        .map { transactions ->
+            transactions.filter { it.type == TransactionType.EARN }.sumOf { it.amount }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
     val sharingPayload = combine(
         account,
         repository.getTransactions(accountId).take(1)
@@ -212,7 +239,8 @@ class AccountDetailViewModel @Inject constructor(
                 DependentRelation(
                     account = dep,
                     totalBalance = totalAll - n * totalReceived,
-                    monthlyBalance = monthlyAll - n * monthlyReceived
+                    monthlyBalance = monthlyAll - n * monthlyReceived,
+                    monthlyReceived = monthlyReceived
                 )
             }
         }

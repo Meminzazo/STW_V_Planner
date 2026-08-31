@@ -31,6 +31,7 @@ import com.meminzazo.stwvplanner.presentation.auth.LoginScreen
 import com.meminzazo.stwvplanner.presentation.detail.AccountDetailScreen
 import com.meminzazo.stwvplanner.presentation.expense.AddExpenseScreen
 import com.meminzazo.stwvplanner.presentation.history.HistoryScreen
+import com.meminzazo.stwvplanner.presentation.summary.DependentSummaryScreen
 import com.meminzazo.stwvplanner.presentation.navigation.Screen
 import com.meminzazo.stwvplanner.presentation.theme.STWVPlannerTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -101,6 +102,9 @@ class MainActivity : ComponentActivity() {
                                     onNavigateToHistory = { accountId ->
                                         navController.navigate(Screen.History.createRoute(accountId))
                                     },
+                                    onNavigateToSummary = { accountId ->
+                                        navController.navigate(Screen.DependentSummary.createRoute(accountId))
+                                    },
                                     snackbarHostState = snackbarHostState
                                 )
                             }
@@ -122,6 +126,16 @@ class MainActivity : ComponentActivity() {
                                 )
                             ) {
                                 HistoryScreen(
+                                    onPopBackStack = { navController.popBackStack() }
+                                )
+                            }
+                            composable(
+                                route = Screen.DependentSummary.route,
+                                arguments = listOf(
+                                    navArgument("accountId") { type = NavType.LongType }
+                                )
+                            ) {
+                                DependentSummaryScreen(
                                     onPopBackStack = { navController.popBackStack() }
                                 )
                             }

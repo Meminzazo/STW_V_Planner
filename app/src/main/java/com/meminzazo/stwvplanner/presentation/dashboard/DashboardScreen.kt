@@ -228,7 +228,7 @@ fun AccountCard(
                 Button(
                     onClick = { onAddDaily(100) },
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = EarnGreen),
+                    colors = ButtonDefaults.buttonColors(containerColor = DailyButtonColor),
                     shape = MaterialTheme.shapes.small
                 ) {
                     Text("+100 D", fontWeight = FontWeight.Black, fontSize = 12.sp)
@@ -236,7 +236,7 @@ fun AccountCard(
                 Button(
                     onClick = { onAddAlert() },
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AlertBlue),
+                    colors = ButtonDefaults.buttonColors(containerColor = AlertButtonColor),
                     shape = MaterialTheme.shapes.small
                 ) {
                     Text("+50 A", fontWeight = FontWeight.Black, fontSize = 12.sp)

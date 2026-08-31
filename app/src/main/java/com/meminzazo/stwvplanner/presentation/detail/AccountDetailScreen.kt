@@ -42,6 +42,7 @@ fun AccountDetailScreen(
     viewModel: AccountDetailViewModel = hiltViewModel(),
     onPopBackStack: () -> Unit,
     onNavigateToHistory: (Long) -> Unit,
+    onNavigateToSummary: (Long) -> Unit, // Nueva navegación
     snackbarHostState: SnackbarHostState
 ) {
     val account by viewModel.account.collectAsState()
@@ -56,6 +57,10 @@ fun AccountDetailScreen(
     val expenseDistributionMensual by viewModel.expenseDistributionMensual.collectAsState()
     val expenseTransactions by viewModel.expenseTransactions.collectAsState()
     val expenseTransactionsMensual by viewModel.expenseTransactionsMensual.collectAsState()
+    val totalExpenses by viewModel.totalExpenses.collectAsState()
+    val totalExpensesMensual by viewModel.totalExpensesMensual.collectAsState()
+    val totalIncome by viewModel.totalIncome.collectAsState()
+    val totalIncomeMensual by viewModel.totalIncomeMensual.collectAsState()
     val dependentAccounts by viewModel.dependentAccounts.collectAsState()
 
     var showAddDependentDialog by remember { mutableStateOf(false) }
@@ -207,6 +212,8 @@ fun AccountDetailScreen(
                     EarningsDistributionCard(
                         monthly = earningsDesglosadasMensual,
                         total = earningsDesglosadas,
+                        totalIncome = totalIncome,
+                        totalIncomeMensual = totalIncomeMensual,
                         onClick = { isMonthly ->
                             val txs = if (isMonthly) earningsTransactionsMensual else earningsTransactions
                             distributionToShow = "Ingresos (${if (isMonthly) "Mes" else "Total"})" to txs
@@ -220,6 +227,8 @@ fun AccountDetailScreen(
                     ExpensesDistributionCard(
                         monthly = expenseDistributionMensual,
                         total = expenseDistribution,
+                        totalExpenses = totalExpenses,
+                        totalExpensesMensual = totalExpensesMensual,
                         onClick = { isMonthly ->
                             val txs = if (isMonthly) expenseTransactionsMensual else expenseTransactions
                             distributionToShow = "Egresos (${if (isMonthly) "Mes" else "Total"})" to txs
@@ -258,7 +267,7 @@ fun AccountDetailScreen(
                 items(dependentRelations) { relation ->
                     RelationItem(
                         relation = relation,
-                        onClick = { onNavigateToHistory(relation.account.id) },
+                        onClick = { onNavigateToSummary(relation.account.id) },
                         onEditName = { accountToRename = relation.account }
                     )
                 }
@@ -294,40 +303,43 @@ fun QuickActionsGrid(
         if (account?.parentAccountId == null) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 ActionButton(
-                    text = "DIARIA", 
-                    color = EarnGreen, 
-                    enabled = !isDailyRegistered, 
-                    modifier = Modifier.weight(1f), 
+                    text = "DIARIA",
+                    color = DailyButtonColor,
+                    enabled = !isDailyRegistered,
+                    modifier = Modifier.weight(1f),
+                    isOutlined = true,
                     onClick = onDailyClick
                 )
                 ActionButton(
-                    text = "ALERTA +50", 
-                    color = AlertBlue, 
-                    modifier = Modifier.weight(1f), 
+                    text = "ALERTA +50",
+                    color = AlertButtonColor,
+                    modifier = Modifier.weight(1f),
+                    isOutlined = true,
                     onClick = onAlertClick
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 ActionButton(
-                    text = "EXTERNO (+)", 
-                    color = StwCardSurface, 
+                    text = "EXTERNO (+)",
+                    color = ExternalButtonColor,
+                    modifier = Modifier.weight(1f),
                     isOutlined = true,
-                    modifier = Modifier.weight(1f), 
                     onClick = onExternalClick
                 )
                 ActionButton(
-                    text = "GASTO / REGALO", 
-                    color = StwCardSurface, 
+                    text = "GASTO / REGALO",
+                    color = ExpenseButtonColor,
+                    modifier = Modifier.weight(1f),
                     isOutlined = true,
-                    modifier = Modifier.weight(1f), 
                     onClick = onExpenseClick
                 )
             }
         }
         ActionButton(
-            text = "REGISTRO MANUAL (EXCEL)", 
-            color = FortPurple, 
-            modifier = Modifier.fillMaxWidth(), 
+            text = "REGISTRO MANUAL",
+            color = FortPurple,
+            modifier = Modifier.fillMaxWidth(),
+            isOutlined = true,
             onClick = onManualClick
         )
     }
@@ -342,15 +354,21 @@ fun ActionButton(
     isOutlined: Boolean = false,
     onClick: () -> Unit
 ) {
+    val displayColor = if (enabled) color else Color.Gray // Gris si está deshabilitado
+    
     if (isOutlined) {
         OutlinedButton(
             onClick = onClick,
             modifier = modifier.height(50.dp),
             enabled = enabled,
             shape = MaterialTheme.shapes.small,
-            border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.5f))
+            border = androidx.compose.foundation.BorderStroke(2.dp, displayColor),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = displayColor,
+                disabledContentColor = Color.Gray
+            )
         ) {
-            Text(text, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Text(text, fontWeight = FontWeight.Black, fontSize = 12.sp)
         }
     } else {
         Button(
@@ -394,7 +412,7 @@ fun BalanceCard(balance: Int) {
 
 @Composable
 fun DistributionPagerCard(
-    baseTitle: String,
+    title: String,
     pagerState: androidx.compose.foundation.pager.PagerState,
     onClick: () -> Unit,
     monthlyContent: @Composable () -> Unit,
@@ -406,7 +424,7 @@ fun DistributionPagerCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = baseTitle + if (pagerState.currentPage == 0) " · MENSUAL" else " · TOTAL",
+                text = title + if (pagerState.currentPage == 0) " · MENSUAL" else " · TOTAL",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = VBucksSilver
@@ -433,25 +451,47 @@ fun DistributionPagerCard(
 }
 
 @Composable
-fun EarningsDistributionCard(monthly: Map<VBucksSource, Int>, total: Map<VBucksSource, Int>, onClick: (Boolean) -> Unit) {
+fun EarningsDistributionCard(
+    monthly: Map<VBucksSource, Int>,
+    total: Map<VBucksSource, Int>,
+    totalIncome: Int = 0,
+    totalIncomeMensual: Int = 0,
+    onClick: (Boolean) -> Unit
+) {
     val pagerState = rememberPagerState(pageCount = { 2 })
-    DistributionPagerCard("DISTRIBUCIÓN DE INGRESOS", pagerState, { onClick(pagerState.currentPage == 0) }, 
-        { EarningsPieContent(monthly) }, { EarningsPieContent(total) })
+    DistributionPagerCard(
+        title = "DISTRIBUCIÓN DE INGRESOS",
+        pagerState = pagerState,
+        onClick = { onClick(pagerState.currentPage == 0) },
+        monthlyContent = { EarningsPieContent(monthly, totalIncomeMensual) },
+        totalContent = { EarningsPieContent(total, totalIncome) }
+    )
 }
 
 @Composable
-fun ExpensesDistributionCard(monthly: Map<String, Int>, total: Map<String, Int>, onClick: (Boolean) -> Unit) {
+fun ExpensesDistributionCard(
+    monthly: Map<String, Int>,
+    total: Map<String, Int>,
+    totalExpenses: Int = 0,
+    totalExpensesMensual: Int = 0,
+    onClick: (Boolean) -> Unit
+) {
     val pagerState = rememberPagerState(pageCount = { 2 })
-    DistributionPagerCard("DISTRIBUCIÓN DE EGRESOS", pagerState, { onClick(pagerState.currentPage == 0) }, 
-        { ExpensesPieContent(monthly) }, { ExpensesPieContent(total) })
+    DistributionPagerCard(
+        title = "DISTRIBUCIÓN DE EGRESOS",
+        pagerState = pagerState,
+        onClick = { onClick(pagerState.currentPage == 0) },
+        monthlyContent = { ExpensesPieContent(monthly, totalExpensesMensual) },
+        totalContent = { ExpensesPieContent(total, totalExpenses) }
+    )
 }
 
 private val STATS_COLORS = listOf(EarnGreen, AlertBlue, FortPurple, FortBlue, FortAccent)
 
 @Composable
-private fun EarningsPieContent(data: Map<VBucksSource, Int>) {
-    val total = data.values.sum().toFloat()
-    if (data.isEmpty() || total == 0f) {
+private fun EarningsPieContent(data: Map<VBucksSource, Int>, totalIncome: Int = 0) {
+    val incomeSum = data.values.sum().toFloat()
+    if (data.isEmpty() || incomeSum == 0f) {
         Text("SIN INGRESOS REGISTRADOS", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(vertical = 20.dp))
         return
     }
@@ -459,7 +499,7 @@ private fun EarningsPieContent(data: Map<VBucksSource, Int>) {
         Canvas(modifier = Modifier.size(80.dp)) {
             var startAngle = 0f
             data.entries.forEachIndexed { index, entry ->
-                val sweepAngle = (entry.value / total) * 360f
+                val sweepAngle = (entry.value / incomeSum) * 360f
                 drawArc(color = STATS_COLORS.getOrElse(index) { Color.Gray }, startAngle = startAngle, sweepAngle = sweepAngle, useCenter = true)
                 startAngle += sweepAngle
             }
@@ -473,14 +513,19 @@ private fun EarningsPieContent(data: Map<VBucksSource, Int>) {
                     Text("${entry.key.name}: ${entry.value}", fontSize = 11.sp, color = VBucksSilver)
                 }
             }
+            // Mostrar total de ingresos si hay datos
+            if (totalIncome > 0) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Total Pavos Ingresados: $totalIncome", fontSize = 11.sp, color = EarnGreen, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
 
 @Composable
-private fun ExpensesPieContent(data: Map<String, Int>) {
-    val total = data.values.sum().toFloat()
-    if (data.isEmpty() || total == 0f) {
+private fun ExpensesPieContent(data: Map<String, Int>, totalExpenses: Int = 0) {
+    val expensesSum = data.values.sum().toFloat()
+    if (data.isEmpty() || expensesSum == 0f) {
         Text("SIN GASTOS REGISTRADOS", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(vertical = 20.dp))
         return
     }
@@ -488,7 +533,7 @@ private fun ExpensesPieContent(data: Map<String, Int>) {
         Canvas(modifier = Modifier.size(80.dp)) {
             var startAngle = 0f
             data.entries.forEachIndexed { index, entry ->
-                val sweepAngle = (entry.value.toFloat() / total) * 360f
+                val sweepAngle = (entry.value.toFloat() / expensesSum) * 360f
                 drawArc(color = STATS_COLORS.getOrElse(index + 2) { Color.Gray }, startAngle = startAngle, sweepAngle = sweepAngle, useCenter = true)
                 startAngle += sweepAngle
             }
@@ -501,6 +546,11 @@ private fun ExpensesPieContent(data: Map<String, Int>) {
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("${entry.key}: ${entry.value}", fontSize = 11.sp, color = VBucksSilver)
                 }
+            }
+            // Mostrar total de gastos si hay datos
+            if (totalExpenses > 0) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Total Pavos Gastados: $totalExpenses", fontSize = 11.sp, color = SpendRed, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -522,9 +572,9 @@ fun RelationItem(relation: DependentRelation, onClick: () -> Unit, onEditName: (
                 Column {
                     Text(relation.account.name.uppercase(), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                     Text(
-                        text = "MES: ${if (relation.monthlyBalance > 0) "+" else ""}${relation.monthlyBalance}",
+                        text = "V-BUCKS RECIBIDOS ESTE MES: ${relation.monthlyReceived}",
                         fontSize = 11.sp,
-                        color = if (relation.monthlyBalance >= 0) EarnGreen else SpendRed,
+                        color = VBucksSilver,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -534,7 +584,7 @@ fun RelationItem(relation: DependentRelation, onClick: () -> Unit, onEditName: (
                 }
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text("TOTAL", fontSize = 10.sp, color = VBucksSilver)
+                Text("BALANCE TOTAL", fontSize = 10.sp, color = VBucksSilver)
                 Text(
                     text = "${if (relation.totalBalance > 0) "+" else ""}${relation.totalBalance}",
                     color = if (relation.totalBalance >= 0) EarnGreen else SpendRed,
@@ -571,23 +621,32 @@ fun DistributionHistoryDialog(title: String, transactions: List<Transaction>, on
     val sdf = remember { SimpleDateFormat("dd/MM/yy", Locale.getDefault()) }
     AlertDialog(
         onDismissRequest = onDismiss,
+        modifier = Modifier.fillMaxWidth(0.95f), // Más ancho como se solicitó
         title = { Text(title.uppercase(), fontWeight = FontWeight.Black, fontSize = 18.sp) },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                    Text("FECHA", Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 10.sp, color = VBucksSilver)
-                    Text("DETALLE", Modifier.weight(2f), fontWeight = FontWeight.Bold, fontSize = 10.sp, color = VBucksSilver)
-                    Text("MONTO", Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 10.sp, color = VBucksSilver, textAlign = TextAlign.End)
+                    Text("FECHA", Modifier.weight(1.2f), fontWeight = FontWeight.Bold, fontSize = 10.sp, color = VBucksSilver)
+                    Text("CUENTA", Modifier.weight(1.8f), fontWeight = FontWeight.Bold, fontSize = 10.sp, color = VBucksSilver)
+                    Text("DETALLE", Modifier.weight(2.5f), fontWeight = FontWeight.Bold, fontSize = 10.sp, color = VBucksSilver)
+                    Text("MONTO", Modifier.weight(1.2f), fontWeight = FontWeight.Bold, fontSize = 10.sp, color = VBucksSilver, textAlign = TextAlign.End)
                 }
                 HorizontalDivider(color = Color.Gray.copy(alpha = 0.3f))
-                LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 350.dp)) {
+                LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 450.dp)) {
                     items(transactions.sortedByDescending { it.date }) { tx ->
-                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(sdf.format(Date(tx.date)), Modifier.weight(1f), fontSize = 11.sp)
-                            val detail = tx.itemName ?: tx.recipientAccountName ?: tx.description
-                            Text(detail.uppercase(), Modifier.weight(2f), fontSize = 11.sp, maxLines = 1)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 10.dp), // Más espacio entre filas
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(sdf.format(Date(tx.date)), Modifier.weight(1.2f), fontSize = 11.sp)
+                            val account = tx.recipientAccountName ?: "-"
+                            Text(account.uppercase(), Modifier.weight(1.8f), fontSize = 11.sp, maxLines = 1)
+                            val detail = tx.itemName ?: tx.description
+                            Text(detail.uppercase(), Modifier.weight(2.5f), fontSize = 11.sp, maxLines = 2) // Max 2 líneas para detalles largos
                             val color = if (tx.type == TransactionType.EARN) EarnGreen else SpendRed
-                            Text("${if (tx.type == TransactionType.EARN) "+" else "-"}${tx.amount}", Modifier.weight(1f), fontSize = 12.sp, textAlign = TextAlign.End, color = color, fontWeight = FontWeight.Black)
+                            Text("${if (tx.type == TransactionType.EARN) "+" else "-"}${tx.amount}", Modifier.weight(1.2f), fontSize = 13.sp, textAlign = TextAlign.End, color = color, fontWeight = FontWeight.Black)
                         }
                         HorizontalDivider(thickness = 0.5.dp, color = Color.Gray.copy(alpha = 0.2f))
                     }

@@ -14,4 +14,8 @@ sealed class Screen(val route: String) {
     object History : Screen("history/{accountId}") {
         fun createRoute(accountId: Long) = "history/$accountId"
     }
+
+    object DependentSummary : Screen("dependent_summary/{accountId}") {
+        fun createRoute(accountId: Long) = "dependent_summary/$accountId"
+    }
 }

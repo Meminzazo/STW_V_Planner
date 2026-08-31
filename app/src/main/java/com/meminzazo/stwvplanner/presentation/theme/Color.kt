@@ -16,7 +16,13 @@ val VBucksSilver = Color(0xFFE0E0E0)
 val StwBackground = Color(0xFF121212)
 val StwCardSurface = Color(0xFF1E1E1E)
 
-// Status Colors
-val EarnGreen = Color(0xFF4CAF50)
-val SpendRed = Color(0xFFF44336)
-val AlertBlue = Color(0xFF03A9F4)
+// Status Colors (Vibrant Neon)
+val EarnGreen = Color(0xFF00E676)  // Green A400
+val SpendRed = Color(0xFFFF1744)   // Red A400
+val AlertBlue = Color(0xFF00B0FF)  // Blue A400
+
+// Button Colors (Updated to vibrant versions)
+val DailyButtonColor = EarnGreen
+val AlertButtonColor = Color(0xFFD500F9)    // Purple A400
+val ExternalButtonColor = Color(0xFFFFEA00) // Yellow A400
+val ExpenseButtonColor = SpendRed

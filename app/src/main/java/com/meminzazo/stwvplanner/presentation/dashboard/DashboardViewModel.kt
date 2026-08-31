@@ -141,7 +141,7 @@ class DashboardViewModel @Inject constructor(
     fun onImportWithCode(code: String) {
         if (!isActionAllowed()) return
         viewModelScope.launch {
-            if (code.length != 6) return@launch
+            if (code.length != 8) return@launch
             _isLoading.value = true
             val result = syncRepository.restoreFromTransferCode(code)
             _uiEvent.emit(UiEvent.ShowError(if (result.isSuccess) "Registros importados con éxito" else "Código inválido o expirado"))

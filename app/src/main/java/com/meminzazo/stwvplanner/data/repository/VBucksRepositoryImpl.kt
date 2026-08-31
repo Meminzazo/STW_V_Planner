@@ -19,8 +19,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 
 class VBucksRepositoryImpl @Inject constructor(
     private val accountDao: AccountDao,
-    private val transactionDao: TransactionDao,
-    private val scheduleSyncUseCase: javax.inject.Provider<com.meminzazo.stwvplanner.domain.usecase.ScheduleSyncUseCase>
+    private val transactionDao: TransactionDao
 ) : VBucksRepository {
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -63,20 +62,16 @@ class VBucksRepositoryImpl @Inject constructor(
 
     override suspend fun insertAccount(account: Account): Long {
         val entity = account.toEntity().copy(isSynced = false, lastUpdated = System.currentTimeMillis())
-        val id = accountDao.insertAccount(entity)
-        scheduleSyncUseCase.get().invoke()
-        return id
+        return accountDao.insertAccount(entity)
     }
 
     override suspend fun updateAccount(account: Account) {
         val entity = account.toEntity().copy(isSynced = false, lastUpdated = System.currentTimeMillis())
         accountDao.updateAccount(entity)
-        scheduleSyncUseCase.get().invoke()
     }
 
     override suspend fun deleteAccount(id: Long) {
         accountDao.deleteAccount(id)
-        scheduleSyncUseCase.get().invoke()
     }
 
     override fun getTransactions(accountId: Long?): Flow<List<Transaction>> {
@@ -85,7 +80,19 @@ class VBucksRepositoryImpl @Inject constructor(
         } else {
             transactionDao.getAllTransactions()
         }
-        return flow.map { entities -> entities.map { it.toDomain() } }
+        return flow.map { entities -> 
+            entities
+                .map { entity ->
+                    val domain = entity.toDomain()
+                    if (accountId != null && domain.receiverAccountId == accountId) {
+                        domain.copy(
+                            type = com.meminzazo.stwvplanner.domain.model.TransactionType.EARN,
+                            senderAccountId = domain.accountId
+                        )
+                    } else domain
+                }
+                .distinctBy { it.syncId.removeSuffix("_rx") }
+        }
     }
 
     override suspend fun insertTransaction(transaction: Transaction): Long {
@@ -95,26 +102,7 @@ class VBucksRepositoryImpl @Inject constructor(
             isSynced = false, 
             lastUpdated = System.currentTimeMillis()
         )
-        val transactionId = transactionDao.insertTransaction(entity)
-
-        // Lógica de doble inserción para regalos entre cuentas locales
-        if (transaction.source == com.meminzazo.stwvplanner.domain.model.VBucksSource.GIFT) {
-            if (transaction.type == com.meminzazo.stwvplanner.domain.model.TransactionType.SPEND && transaction.receiverAccountId != null) {
-                // Si yo regalo, el otro recibe
-                val receivingTransaction = transaction.copy(
-                    id = 0,
-                    accountId = transaction.receiverAccountId,
-                    type = com.meminzazo.stwvplanner.domain.model.TransactionType.EARN,
-                    senderAccountId = transaction.accountId,
-                    receiverAccountId = null
-                )
-                transactionDao.insertTransaction(receivingTransaction.toEntity().copy(isSynced = false, lastUpdated = System.currentTimeMillis()))
-            }
-        }
-        
-        scheduleSyncUseCase.get().invoke()
-
-        return transactionId
+        return transactionDao.insertTransaction(entity)
     }
 
     override suspend fun deleteTransaction(transaction: Transaction) {
@@ -122,7 +110,10 @@ class VBucksRepositoryImpl @Inject constructor(
     }
 
     override suspend fun updateTransaction(transaction: Transaction) {
-        transactionDao.updateTransaction(transaction.toEntity())
+        transactionDao.updateTransaction(transaction.toEntity().copy(
+            isSynced = false, 
+            lastUpdated = System.currentTimeMillis()
+        ))
     }
 
     override fun getBalance(accountId: Long): Flow<Int> {
@@ -161,12 +152,31 @@ class VBucksRepositoryImpl @Inject constructor(
     }
 
     override fun getTransactionsInRange(accountId: Long, start: Long, end: Long): Flow<List<Transaction>> {
-        return transactionDao.getTransactionsInRange(accountId, start, end).map { entities -> entities.map { it.toDomain() } }
+        return transactionDao.getTransactionsInRange(accountId, start, end).map { entities -> 
+            entities
+                .map { entity ->
+                    val domain = entity.toDomain()
+                    if (domain.receiverAccountId == accountId) {
+                        domain.copy(
+                            type = com.meminzazo.stwvplanner.domain.model.TransactionType.EARN,
+                            senderAccountId = domain.accountId
+                        )
+                    } else domain
+                }
+                .distinctBy { it.syncId.removeSuffix("_rx") }
+        }
     }
 
     override fun getGiftsReceivedFrom(accountId: Long, senderId: Long): Flow<List<Transaction>> {
         return transactionDao.getGiftsReceivedFrom(accountId, senderId).map { entities ->
-            entities.map { it.toDomain() }
+            entities
+                .map { entity ->
+                    entity.toDomain().copy(
+                        type = com.meminzazo.stwvplanner.domain.model.TransactionType.EARN,
+                        senderAccountId = entity.accountId
+                    )
+                }
+                .distinctBy { it.syncId.removeSuffix("_rx") }
         }
     }
 
