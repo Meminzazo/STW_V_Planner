@@ -12,4 +12,7 @@ interface AuthRepository {
     
     fun isGuestBannerMinimized(): Flow<Boolean>
     suspend fun setGuestBannerMinimized(minimized: Boolean)
+    
+    suspend fun getAppCheckDebugToken(): String?
+    suspend fun ensureAppCheckTokenGenerated()
 }

@@ -14,6 +14,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.meminzazo.stwvplanner.BuildConfig
 import com.meminzazo.stwvplanner.domain.model.Account
 import com.meminzazo.stwvplanner.domain.model.Transaction
 import com.meminzazo.stwvplanner.domain.model.TransactionType
@@ -67,6 +68,11 @@ class DashboardViewModel @Inject constructor(
     private var lockoutUntil = 0L
 
     private var pendingBackupJson: String? = null
+
+    private var versionClickCount = 0
+    private var lastVersionClickTime = 0L
+
+    val appVersion = "v${BuildConfig.VERSION_NAME}"
 
     private val _uiEvent = MutableSharedFlow<UiEvent>()
     val uiEvent = _uiEvent.asSharedFlow()
@@ -452,11 +458,33 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch { repository.restoreAccount(accountId) }
     }
 
+    fun onVersionClick() {
+        val now = System.currentTimeMillis()
+        if (now - lastVersionClickTime > 2000) {
+            versionClickCount = 1
+        } else {
+            versionClickCount++
+        }
+        lastVersionClickTime = now
+
+        if (versionClickCount >= 7) {
+            versionClickCount = 0
+            viewModelScope.launch {
+                // Forzamos la generación silenciosa antes de leer
+                authRepository.ensureAppCheckTokenGenerated()
+                
+                val token = authRepository.getAppCheckDebugToken()
+                _uiEvent.emit(UiEvent.ShowDebugDialog(token ?: "Error al generar token automático"))
+            }
+        }
+    }
+
     sealed class UiEvent {
         data class ShowError(val message: String) : UiEvent()
         data class ShowTransferCode(val code: String) : UiEvent()
         object ShowExportOptions : UiEvent()
         object ShowImportCodeDialog : UiEvent()
+        data class ShowDebugDialog(val token: String) : UiEvent()
         data class LaunchCreateDocument(val fileName: String) : UiEvent()
         data class ConfirmFileImport(val uri: Uri) : UiEvent()
     }

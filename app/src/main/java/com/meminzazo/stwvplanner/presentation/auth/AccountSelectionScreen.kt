@@ -3,6 +3,7 @@ package com.meminzazo.stwvplanner.presentation.auth
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -24,12 +25,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -61,6 +66,7 @@ fun AccountSelectionScreen(
     var showExportOptionsDialog by remember { mutableStateOf(false) }
     var showTransferCodeDialog by remember { mutableStateOf<String?>(null) }
     var showImportCodeDialog by remember { mutableStateOf(false) }
+    var showDebugDialog by remember { mutableStateOf<String?>(null) }
     var pendingImportUri by remember { mutableStateOf<android.net.Uri?>(null) }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -90,6 +96,9 @@ fun AccountSelectionScreen(
                 }
                 is DashboardViewModel.UiEvent.ShowImportCodeDialog -> {
                     showImportCodeDialog = true
+                }
+                is DashboardViewModel.UiEvent.ShowDebugDialog -> {
+                    showDebugDialog = event.token
                 }
                 is DashboardViewModel.UiEvent.LaunchCreateDocument -> {
                     createDocumentLauncher.launch(event.fileName)
@@ -234,6 +243,49 @@ fun AccountSelectionScreen(
                     ) {
                         Text("Cancelar")
                     }
+                }
+            }
+        )
+    }
+
+    if (showDebugDialog != null) {
+        val clipboardManager = LocalClipboardManager.current
+        AlertDialog(
+            onDismissRequest = { showDebugDialog = null },
+            title = { Text("Identificador de Desarrollador") },
+            text = {
+                Column {
+                    Text(
+                        "Este código permite que este dispositivo acceda a los servicios de Firebase para pruebas. Solo compártelo con el administrador del proyecto.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = showDebugDialog!!,
+                            modifier = Modifier.padding(12.dp),
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        clipboardManager.setText(AnnotatedString(showDebugDialog!!))
+                        showDebugDialog = null
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Copiar y Cerrar")
                 }
             }
         )
@@ -445,6 +497,23 @@ fun AccountSelectionScreen(
                         onRestore = { viewModel.onRestoreAccountClick(account.id) }
                     )
                 }
+            }
+
+            item {
+                Spacer(Modifier.height(32.dp))
+                Text(
+                    text = viewModel.appVersion,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() }
+                        ) { viewModel.onVersionClick() }
+                        .padding(16.dp),
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.Gray.copy(alpha = 0.5f)
+                )
             }
         }
     }

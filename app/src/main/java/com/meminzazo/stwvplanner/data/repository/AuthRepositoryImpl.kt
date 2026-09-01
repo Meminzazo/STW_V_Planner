@@ -1,6 +1,7 @@
 package com.meminzazo.stwvplanner.data.repository
 
 import android.content.Context
+import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import com.meminzazo.stwvplanner.domain.model.User
@@ -9,10 +10,12 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.tasks.await
+import java.io.File
 import javax.inject.Inject
 
 class AuthRepositoryImpl @Inject constructor(
     private val firebaseAuth: FirebaseAuth,
+    private val appCheck: FirebaseAppCheck,
     @ApplicationContext private val context: Context
 ) : AuthRepository {
 
@@ -70,6 +73,37 @@ class AuthRepositoryImpl @Inject constructor(
     override suspend fun setGuestBannerMinimized(minimized: Boolean) {
         prefs.edit().putBoolean("guest_banner_minimized", minimized).apply()
         _bannerMinimizedFlow.value = minimized
+    }
+
+    override suspend fun getAppCheckDebugToken(): String? {
+        return try {
+            // El SDK de Firebase usa un nombre de archivo dinámico: com.google.firebase.appcheck.debug.store.[PERSISTENCE_KEY]
+            // Escaneamos la carpeta de shared_prefs para encontrarlo.
+            val sharedPrefsDir = File(context.applicationInfo.dataDir, "shared_prefs")
+            if (sharedPrefsDir.exists() && sharedPrefsDir.isDirectory) {
+                val debugPrefsFile = sharedPrefsDir.listFiles()?.find { 
+                    it.name.startsWith("com.google.firebase.appcheck.debug.store") 
+                }
+                if (debugPrefsFile != null) {
+                    val prefsName = debugPrefsFile.name.removeSuffix(".xml")
+                    val debugPrefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+                    return debugPrefs.getString("com.google.firebase.appcheck.debug.DEBUG_SECRET", null)
+                }
+            }
+            null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    override suspend fun ensureAppCheckTokenGenerated() {
+        try {
+            // Forzamos la obtención de un token (aunque no lo usemos) para asegurar
+            // que el proveedor de depuración se inicialice y genere el secreto.
+            appCheck.getAppCheckToken(false).await()
+        } catch (_: Exception) {
+            // No importa si falla (ej. sin red), el objetivo es disparar la inicialización local.
+        }
     }
 
     private fun setLocalMode(enabled: Boolean) {
