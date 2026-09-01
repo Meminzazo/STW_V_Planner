@@ -19,4 +19,8 @@ interface SyncRepository {
     // Funciones para compartir por código
     suspend fun generateTransferCode(userId: String): Result<String>
     suspend fun restoreFromTransferCode(code: String): Result<Unit>
+
+    // Funciones para compartir por archivo
+    suspend fun getFullDatabaseJson(): Result<String>
+    suspend fun restoreDatabaseFromJson(json: String): Result<Unit>
 }

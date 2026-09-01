@@ -2,7 +2,10 @@ package com.meminzazo.stwvplanner.presentation.dashboard
 
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.ComponentActivity
+import androidx.core.content.FileProvider
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.GetCredentialResponse
@@ -20,8 +23,15 @@ import com.meminzazo.stwvplanner.domain.repository.SyncRepository
 import com.meminzazo.stwvplanner.domain.repository.VBucksRepository
 import com.meminzazo.stwvplanner.domain.usecase.AddAccountUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import javax.inject.Inject
 
 @HiltViewModel
@@ -52,6 +62,8 @@ class DashboardViewModel @Inject constructor(
 
     private var importFailCount = 0
     private var lockoutUntil = 0L
+
+    private var pendingBackupJson: String? = null
 
     private val _uiEvent = MutableSharedFlow<UiEvent>()
     val uiEvent = _uiEvent.asSharedFlow()
@@ -150,9 +162,14 @@ class DashboardViewModel @Inject constructor(
     fun onImportWithCode(code: String) {
         if (!isImportAllowed()) return
         viewModelScope.launch {
-            if (code.length != 10) return@launch
+            // Limpieza básica de la entrada
+            val cleanCode = code.trim().filter { it.isDigit() }
+            if (cleanCode.length != 10) {
+                _uiEvent.emit(UiEvent.ShowError("El código debe tener 10 números"))
+                return@launch
+            }
             _isLoading.value = true
-            val result = syncRepository.restoreFromTransferCode(code)
+            val result = syncRepository.restoreFromTransferCode(cleanCode)
             if (result.isSuccess) {
                 importFailCount = 0
                 _uiEvent.emit(UiEvent.ShowError("Registros importados con éxito"))
@@ -166,6 +183,101 @@ class DashboardViewModel @Inject constructor(
                 }
             }
             _isLoading.value = false
+        }
+    }
+
+    fun onStartExport() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            val result = syncRepository.getFullDatabaseJson()
+            if (result.isSuccess) {
+                pendingBackupJson = result.getOrThrow()
+                _uiEvent.emit(UiEvent.ShowExportOptions)
+            } else {
+                _uiEvent.emit(UiEvent.ShowError("Error al generar respaldo"))
+            }
+            _isLoading.value = false
+        }
+    }
+
+    fun onConfirmSaveExport() {
+        viewModelScope.launch {
+            val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(Date())
+            val fileName = "VPlanner_Backup_$timeStamp.json"
+            _uiEvent.emit(UiEvent.LaunchCreateDocument(fileName))
+        }
+    }
+
+    fun onPerformSave(uri: Uri, context: Context) {
+        val json = pendingBackupJson ?: return
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri)?.use { 
+                        it.write(json.toByteArray())
+                    }
+                }
+                _uiEvent.emit(UiEvent.ShowError("Archivo guardado con éxito"))
+                pendingBackupJson = null
+            } catch (e: Exception) {
+                _uiEvent.emit(UiEvent.ShowError("Error al guardar: ${e.message}"))
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun onPerformShare(context: Context) {
+        val json = pendingBackupJson ?: return
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(Date())
+                val fileName = "VPlanner_Backup_$timeStamp.json"
+                val file = File(context.cacheDir, fileName)
+                
+                withContext(Dispatchers.IO) {
+                    FileOutputStream(file).use { it.write(json.toByteArray()) }
+                }
+
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "application/json"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                context.startActivity(Intent.createChooser(intent, "Compartir Respaldo"))
+                pendingBackupJson = null
+            } catch (e: Exception) {
+                _uiEvent.emit(UiEvent.ShowError("Error al compartir: ${e.message}"))
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun onImportFromFile(uri: Uri, context: Context) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val json = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { 
+                        it.bufferedReader().readText()
+                    }
+                } ?: ""
+                
+                if (json.isBlank()) {
+                    _uiEvent.emit(UiEvent.ShowError("El archivo está vacío"))
+                } else {
+                    val result = syncRepository.restoreDatabaseFromJson(json)
+                    _uiEvent.emit(UiEvent.ShowError(if (result.isSuccess) "Importación completada" else "Error al importar: ${result.exceptionOrNull()?.message}"))
+                }
+            } catch (e: Exception) {
+                _uiEvent.emit(UiEvent.ShowError("Error al leer archivo: ${e.message}"))
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 
@@ -299,5 +411,7 @@ class DashboardViewModel @Inject constructor(
     sealed class UiEvent {
         data class ShowError(val message: String) : UiEvent()
         data class ShowTransferCode(val code: String) : UiEvent()
+        object ShowExportOptions : UiEvent()
+        data class LaunchCreateDocument(val fileName: String) : UiEvent()
     }
 }

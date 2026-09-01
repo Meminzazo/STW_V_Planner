@@ -72,8 +72,8 @@ class SyncRepositoryImpl @Inject constructor(
 
     override suspend fun generateTransferCode(userId: String): Result<String> {
         return try {
-            // Alfanumérico, sin caracteres ambiguos (0/O, 1/I/L) -> ~10^15 combinaciones
-            val charPool = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+            // Códigos puramente numéricos de 10 dígitos
+            val charPool = "0123456789"
             val code = (1..10).map { charPool.random() }.joinToString("")
 
             val json = backupToJson()
@@ -111,6 +111,18 @@ class SyncRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    override suspend fun getFullDatabaseJson(): Result<String> {
+        return try {
+            Result.success(backupToJson())
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun restoreDatabaseFromJson(json: String): Result<Unit> {
+        return restoreFromJson(json)
     }
 
     private suspend fun backupToJson(): String {

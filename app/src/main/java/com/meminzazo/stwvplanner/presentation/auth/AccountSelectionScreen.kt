@@ -1,5 +1,7 @@
 package com.meminzazo.stwvplanner.presentation.auth
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -13,6 +15,8 @@ import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material3.*
@@ -53,8 +57,22 @@ fun AccountSelectionScreen(
     var showAddAccountDialog by remember { mutableStateOf(false) }
     var showRestoreConfirm by remember { mutableStateOf(false) }
     var showCloudMenu by remember { mutableStateOf(false) }
+    var showCloudOptions by remember { mutableStateOf(false) }
+    var showExportOptionsDialog by remember { mutableStateOf(false) }
     var showTransferCodeDialog by remember { mutableStateOf<String?>(null) }
     var showImportCodeDialog by remember { mutableStateOf(false) }
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let { viewModel.onImportFromFile(it, context) }
+    }
+
+    val createDocumentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        uri?.let { viewModel.onPerformSave(it, context) }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.uiEvent.collect { event ->
@@ -64,6 +82,12 @@ fun AccountSelectionScreen(
                 }
                 is DashboardViewModel.UiEvent.ShowTransferCode -> {
                     showTransferCodeDialog = event.code
+                }
+                is DashboardViewModel.UiEvent.ShowExportOptions -> {
+                    showExportOptionsDialog = true
+                }
+                is DashboardViewModel.UiEvent.LaunchCreateDocument -> {
+                    createDocumentLauncher.launch(event.fileName)
                 }
             }
         }
@@ -115,12 +139,17 @@ fun AccountSelectionScreen(
             title = { Text("Importar con Código") },
             text = {
                 Column {
-                    Text("Ingresa el código de 10 caracteres que te compartieron:")
+                    Text("Ingresa el código de 10 dígitos que te compartieron:")
                     OutlinedTextField(
                         value = code,
-                        onValueChange = { if (it.length <= 10) code = it.uppercase() },
-                        label = { Text("Código") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                        onValueChange = { 
+                            if (it.length <= 10 && it.all { char -> char.isDigit() }) {
+                                code = it
+                            }
+                        },
+                        label = { Text("Código Numérico") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -140,6 +169,43 @@ fun AccountSelectionScreen(
         )
     }
 
+    if (showExportOptionsDialog) {
+        AlertDialog(
+            onDismissRequest = { showExportOptionsDialog = false },
+            title = { Text("Exportar Respaldo") },
+            text = { Text("¿Cómo deseas guardar tu respaldo?") },
+            confirmButton = {
+                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            showExportOptionsDialog = false
+                            viewModel.onConfirmSaveExport()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.FileUpload, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Guardar en dispositivo")
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            showExportOptionsDialog = false
+                            viewModel.onPerformShare(context)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.CloudUpload, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Compartir directamente")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExportOptionsDialog = false }) { Text("Cancelar") }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -151,48 +217,97 @@ fun AccountSelectionScreen(
                             strokeWidth = 2.dp,
                             color = MaterialTheme.colorScheme.primary
                         )
-                    } else if (!isLocalMode) {
+                    } else {
                         Box {
-                            IconButton(onClick = { showCloudMenu = true }) {
-                                Icon(Icons.Default.Cloud, contentDescription = "Nube")
+                            IconButton(onClick = { 
+                                showCloudMenu = true 
+                                showCloudOptions = false // Cerrada por defecto al abrir el menú principal
+                            }) {
+                                Icon(Icons.Default.Cloud, contentDescription = "Gestión de Datos")
                             }
                             DropdownMenu(
                                 expanded = showCloudMenu,
                                 onDismissRequest = { showCloudMenu = false }
                             ) {
-                                DropdownMenuItem(
-                                    text = { Text("Respaldar todo (Mi Cuenta)") },
-                                    onClick = {
-                                        viewModel.onBackupClick()
-                                        showCloudMenu = false
-                                    },
-                                    leadingIcon = { Icon(Icons.Default.CloudUpload, contentDescription = null) }
+                                // Sección de Archivo (Local) - Visible siempre y arriba
+                                Text(
+                                    "📁 ARCHIVO LOCAL",
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = FortAccent
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("Restaurar todo (Mi Cuenta)") },
+                                    text = { Text("Exportar Respaldo") },
                                     onClick = {
-                                        showRestoreConfirm = true
+                                        viewModel.onStartExport()
                                         showCloudMenu = false
                                     },
-                                    leadingIcon = { Icon(Icons.Default.CloudDownload, contentDescription = null) }
+                                    leadingIcon = { Icon(Icons.Default.FileUpload, contentDescription = null) }
                                 )
+                                DropdownMenuItem(
+                                    text = { Text("Importar Respaldo") },
+                                    onClick = {
+                                        filePickerLauncher.launch("application/json")
+                                        showCloudMenu = false
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.FileDownload, contentDescription = null) }
+                                )
+                                
                                 HorizontalDivider()
+                                
+                                // Sección de Nube (Firebase) - Minimizada por defecto
                                 DropdownMenuItem(
-                                    text = { Text("Generar código para amigo") },
-                                    onClick = {
-                                        viewModel.onGenerateTransferCode()
-                                        showCloudMenu = false
+                                    text = { 
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                "☁️ NUBE (FIREBASE)",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = if (isLocalMode) Color.Gray else MaterialTheme.colorScheme.primary
+                                            )
+                                            Text(if (showCloudOptions) "▲" else "▼", fontSize = 10.sp)
+                                        }
                                     },
-                                    leadingIcon = { Icon(Icons.Default.Key, contentDescription = null) }
+                                    onClick = { showCloudOptions = !showCloudOptions }
                                 )
-                                DropdownMenuItem(
-                                    text = { Text("Importar código de amigo") },
-                                    onClick = {
-                                        showImportCodeDialog = true
-                                        showCloudMenu = false
-                                    },
-                                    leadingIcon = { Icon(Icons.Default.Key, contentDescription = null) }
-                                )
+
+                                if (showCloudOptions) {
+                                    DropdownMenuItem(
+                                        text = { Text("Respaldar en la Nube") },
+                                        onClick = {
+                                            viewModel.onBackupClick()
+                                            showCloudMenu = false
+                                        },
+                                        leadingIcon = { Icon(Icons.Default.CloudUpload, contentDescription = null) }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Restaurar de la Nube") },
+                                        onClick = {
+                                            showRestoreConfirm = true
+                                            showCloudMenu = false
+                                        },
+                                        leadingIcon = { Icon(Icons.Default.CloudDownload, contentDescription = null) }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Generar código") },
+                                        onClick = {
+                                            viewModel.onGenerateTransferCode()
+                                            showCloudMenu = false
+                                        },
+                                        leadingIcon = { Icon(Icons.Default.Key, contentDescription = null) }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Importar código") },
+                                        onClick = {
+                                            showImportCodeDialog = true
+                                            showCloudMenu = false
+                                        },
+                                        leadingIcon = { Icon(Icons.Default.Key, contentDescription = null) }
+                                    )
+                                }
                             }
                         }
                     }
