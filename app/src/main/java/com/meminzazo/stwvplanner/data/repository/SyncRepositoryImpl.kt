@@ -1,5 +1,7 @@
 package com.meminzazo.stwvplanner.data.repository
 
+import androidx.room.withTransaction
+import com.meminzazo.stwvplanner.data.local.VBucksDatabase
 import com.meminzazo.stwvplanner.data.local.dao.AccountDao
 import com.meminzazo.stwvplanner.data.local.dao.TransactionDao
 import com.google.firebase.firestore.FirebaseFirestore
@@ -14,6 +16,7 @@ import javax.inject.Inject
 
 class SyncRepositoryImpl @Inject constructor(
     private val firestore: FirebaseFirestore,
+    private val db: VBucksDatabase,
     private val accountDao: AccountDao,
     private val transactionDao: TransactionDao
 ) : SyncRepository {
@@ -134,10 +137,14 @@ class SyncRepositoryImpl @Inject constructor(
     private suspend fun restoreFromJson(json: String): Result<Unit> {
         return try {
             val backup = com.google.gson.Gson().fromJson(json, FullBackup::class.java)
-            accountDao.clearAllAccounts()
-            transactionDao.clearAllTransactions()
-            backup.accounts.forEach { accountDao.insertAccount(it) }
-            backup.transactions.forEach { transactionDao.insertTransaction(it) }
+            // withTransaction: si algo falla a medio proceso (archivo corrupto, entidad inválida),
+            // se revierte todo -> nunca se queda la BD vacía o a medias.
+            db.withTransaction {
+                accountDao.clearAllAccounts()
+                transactionDao.clearAllTransactions()
+                backup.accounts.forEach { accountDao.insertAccount(it) }
+                backup.transactions.forEach { transactionDao.insertTransaction(it) }
+            }
             Result.success(Unit)
         } catch (e: Exception) { Result.failure(e) }
     }

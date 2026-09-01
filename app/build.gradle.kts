@@ -14,8 +14,8 @@ android {
         applicationId = "com.meminzazo.stwvplanner"
         minSdk = 28
         targetSdk = 36
-        versionCode = 3
-        versionName = "3.0"
+        versionCode = 4
+        versionName = "3.1.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
