@@ -57,6 +57,9 @@ class DashboardViewModel @Inject constructor(
     private val _isLocalMode = MutableStateFlow(false)
     val isLocalMode = _isLocalMode.asStateFlow()
 
+    val isGuestBannerMinimized: StateFlow<Boolean> = authRepository.isGuestBannerMinimized()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     private var lastActionTime = 0L
     private val CLOUD_COOLDOWN = 60000L
 
@@ -71,6 +74,22 @@ class DashboardViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             _isLocalMode.value = authRepository.isUserLocal()
+        }
+    }
+
+    /**
+     * Limpia respaldos temporales de más de 24h que pudieran haber quedado
+     * en cache/exports tras un "Compartir directamente" (ver onPerformShare).
+     */
+    fun cleanupOldExports(context: Context) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val exportsDir = File(context.cacheDir, "exports")
+                val cutoff = System.currentTimeMillis() - (24 * 60 * 60 * 1000L)
+                exportsDir.listFiles()?.forEach { file ->
+                    if (file.lastModified() < cutoff) file.delete()
+                }
+            } catch (_: Exception) { /* limpieza best-effort, no bloquea la app */ }
         }
     }
 
@@ -159,8 +178,16 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
+    fun onStartImportCode() {
+        if (isCloudActionAllowed()) {
+            viewModelScope.launch {
+                _uiEvent.emit(UiEvent.ShowImportCodeDialog)
+            }
+        }
+    }
+
     fun onImportWithCode(code: String) {
-        if (!isImportAllowed()) return
+        if (!isImportAllowed() || !isCloudActionAllowed()) return
         viewModelScope.launch {
             // Limpieza básica de la entrada
             val cleanCode = code.trim().filter { it.isDigit() }
@@ -214,7 +241,7 @@ class DashboardViewModel @Inject constructor(
             _isLoading.value = true
             try {
                 withContext(Dispatchers.IO) {
-                    context.contentResolver.openOutputStream(uri)?.use { 
+                    context.contentResolver.openOutputStream(uri)?.use {
                         it.write(json.toByteArray())
                     }
                 }
@@ -235,8 +262,9 @@ class DashboardViewModel @Inject constructor(
             try {
                 val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(Date())
                 val fileName = "VPlanner_Backup_$timeStamp.json"
-                val file = File(context.cacheDir, fileName)
-                
+                val exportsDir = File(context.cacheDir, "exports").apply { mkdirs() }
+                val file = File(exportsDir, fileName)
+
                 withContext(Dispatchers.IO) {
                     FileOutputStream(file).use { it.write(json.toByteArray()) }
                 }
@@ -249,6 +277,8 @@ class DashboardViewModel @Inject constructor(
                 }
                 context.startActivity(Intent.createChooser(intent, "Compartir Respaldo"))
                 pendingBackupJson = null
+                // No se borra el archivo aquí: la app receptora aún puede estar leyendo el stream.
+                // Se limpia solo (>24h) en cleanupOldExports(), llamado al abrir esta pantalla.
             } catch (e: Exception) {
                 _uiEvent.emit(UiEvent.ShowError("Error al compartir: ${e.message}"))
             } finally {
@@ -257,16 +287,24 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
+    /** Paso 1: el usuario ya eligió un archivo. Antes de tocar la BD, se pide confirmación en la UI. */
+    fun onFileSelectedForImport(uri: Uri) {
+        viewModelScope.launch {
+            _uiEvent.emit(UiEvent.ConfirmFileImport(uri))
+        }
+    }
+
+    /** Paso 2: se ejecuta solo tras la confirmación explícita del usuario en el diálogo. */
     fun onImportFromFile(uri: Uri, context: Context) {
         viewModelScope.launch {
             _isLoading.value = true
             try {
                 val json = withContext(Dispatchers.IO) {
-                    context.contentResolver.openInputStream(uri)?.use { 
+                    context.contentResolver.openInputStream(uri)?.use {
                         it.bufferedReader().readText()
                     }
                 } ?: ""
-                
+
                 if (json.isBlank()) {
                     _uiEvent.emit(UiEvent.ShowError("El archivo está vacío"))
                 } else {
@@ -278,6 +316,12 @@ class DashboardViewModel @Inject constructor(
             } finally {
                 _isLoading.value = false
             }
+        }
+    }
+
+    fun setGuestBannerMinimized(minimized: Boolean) {
+        viewModelScope.launch {
+            authRepository.setGuestBannerMinimized(minimized)
         }
     }
 
@@ -304,7 +348,7 @@ class DashboardViewModel @Inject constructor(
 
                 val result = credentialManager.getCredential(activity, request)
                 val credential = result.credential
-                
+
                 try {
                     val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
                     val res = authRepository.signInWithGoogle(googleIdTokenCredential.idToken)
@@ -412,6 +456,8 @@ class DashboardViewModel @Inject constructor(
         data class ShowError(val message: String) : UiEvent()
         data class ShowTransferCode(val code: String) : UiEvent()
         object ShowExportOptions : UiEvent()
+        object ShowImportCodeDialog : UiEvent()
         data class LaunchCreateDocument(val fileName: String) : UiEvent()
+        data class ConfirmFileImport(val uri: Uri) : UiEvent()
     }
 }

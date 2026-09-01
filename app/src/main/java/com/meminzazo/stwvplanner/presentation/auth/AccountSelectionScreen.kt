@@ -53,7 +53,7 @@ fun AccountSelectionScreen(
     val deletedAccounts by viewModel.deletedAccounts.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val isLocalMode by viewModel.isLocalMode.collectAsState()
-    var isGuestBannerMinimized by remember { mutableStateOf(false) }
+    val isGuestBannerMinimized by viewModel.isGuestBannerMinimized.collectAsState()
     var showAddAccountDialog by remember { mutableStateOf(false) }
     var showRestoreConfirm by remember { mutableStateOf(false) }
     var showCloudMenu by remember { mutableStateOf(false) }
@@ -61,11 +61,12 @@ fun AccountSelectionScreen(
     var showExportOptionsDialog by remember { mutableStateOf(false) }
     var showTransferCodeDialog by remember { mutableStateOf<String?>(null) }
     var showImportCodeDialog by remember { mutableStateOf(false) }
+    var pendingImportUri by remember { mutableStateOf<android.net.Uri?>(null) }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
-        uri?.let { viewModel.onImportFromFile(it, context) }
+        uri?.let { viewModel.onFileSelectedForImport(it) }
     }
 
     val createDocumentLauncher = rememberLauncherForActivityResult(
@@ -75,6 +76,7 @@ fun AccountSelectionScreen(
     }
 
     LaunchedEffect(Unit) {
+        viewModel.cleanupOldExports(context)
         viewModel.uiEvent.collect { event ->
             when (event) {
                 is DashboardViewModel.UiEvent.ShowError -> {
@@ -86,11 +88,36 @@ fun AccountSelectionScreen(
                 is DashboardViewModel.UiEvent.ShowExportOptions -> {
                     showExportOptionsDialog = true
                 }
+                is DashboardViewModel.UiEvent.ShowImportCodeDialog -> {
+                    showImportCodeDialog = true
+                }
                 is DashboardViewModel.UiEvent.LaunchCreateDocument -> {
                     createDocumentLauncher.launch(event.fileName)
                 }
+                is DashboardViewModel.UiEvent.ConfirmFileImport -> {
+                    pendingImportUri = event.uri
+                }
             }
         }
+    }
+
+    if (pendingImportUri != null) {
+        AlertDialog(
+            onDismissRequest = { pendingImportUri = null },
+            title = { Text("Importar Respaldo") },
+            text = { Text("¿Estás seguro? Esto reemplazará todos tus datos actuales por los del archivo seleccionado. Esta acción no se puede deshacer.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        pendingImportUri?.let { viewModel.onImportFromFile(it, context) }
+                        pendingImportUri = null
+                    }
+                ) { Text("Sí, reemplazar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingImportUri = null }) { Text("Cancelar") }
+            }
+        )
     }
 
     if (showRestoreConfirm) {
@@ -142,7 +169,7 @@ fun AccountSelectionScreen(
                     Text("Ingresa el código de 10 dígitos que te compartieron:")
                     OutlinedTextField(
                         value = code,
-                        onValueChange = { 
+                        onValueChange = {
                             if (it.length <= 10 && it.all { char -> char.isDigit() }) {
                                 code = it
                             }
@@ -175,7 +202,10 @@ fun AccountSelectionScreen(
             title = { Text("Exportar Respaldo") },
             text = { Text("¿Cómo deseas guardar tu respaldo?") },
             confirmButton = {
-                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Button(
                         onClick = {
                             showExportOptionsDialog = false
@@ -198,10 +228,13 @@ fun AccountSelectionScreen(
                         Spacer(Modifier.width(8.dp))
                         Text("Compartir directamente")
                     }
+                    TextButton(
+                        onClick = { showExportOptionsDialog = false },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Cancelar")
+                    }
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { showExportOptionsDialog = false }) { Text("Cancelar") }
             }
         )
     }
@@ -219,8 +252,8 @@ fun AccountSelectionScreen(
                         )
                     } else {
                         Box {
-                            IconButton(onClick = { 
-                                showCloudMenu = true 
+                            IconButton(onClick = {
+                                showCloudMenu = true
                                 showCloudOptions = false // Cerrada por defecto al abrir el menú principal
                             }) {
                                 Icon(Icons.Default.Cloud, contentDescription = "Gestión de Datos")
@@ -252,12 +285,12 @@ fun AccountSelectionScreen(
                                     },
                                     leadingIcon = { Icon(Icons.Default.FileDownload, contentDescription = null) }
                                 )
-                                
+
                                 HorizontalDivider()
-                                
+
                                 // Sección de Nube (Firebase) - Minimizada por defecto
                                 DropdownMenuItem(
-                                    text = { 
+                                    text = {
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -281,7 +314,8 @@ fun AccountSelectionScreen(
                                             viewModel.onBackupClick()
                                             showCloudMenu = false
                                         },
-                                        leadingIcon = { Icon(Icons.Default.CloudUpload, contentDescription = null) }
+                                        leadingIcon = { Icon(Icons.Default.CloudUpload, contentDescription = null) },
+                                        enabled = !isLocalMode
                                     )
                                     DropdownMenuItem(
                                         text = { Text("Restaurar de la Nube") },
@@ -289,7 +323,8 @@ fun AccountSelectionScreen(
                                             showRestoreConfirm = true
                                             showCloudMenu = false
                                         },
-                                        leadingIcon = { Icon(Icons.Default.CloudDownload, contentDescription = null) }
+                                        leadingIcon = { Icon(Icons.Default.CloudDownload, contentDescription = null) },
+                                        enabled = !isLocalMode
                                     )
                                     DropdownMenuItem(
                                         text = { Text("Generar código") },
@@ -297,15 +332,17 @@ fun AccountSelectionScreen(
                                             viewModel.onGenerateTransferCode()
                                             showCloudMenu = false
                                         },
-                                        leadingIcon = { Icon(Icons.Default.Key, contentDescription = null) }
+                                        leadingIcon = { Icon(Icons.Default.Key, contentDescription = null) },
+                                        enabled = !isLocalMode
                                     )
                                     DropdownMenuItem(
                                         text = { Text("Importar código") },
                                         onClick = {
-                                            showImportCodeDialog = true
+                                            viewModel.onStartImportCode()
                                             showCloudMenu = false
                                         },
-                                        leadingIcon = { Icon(Icons.Default.Key, contentDescription = null) }
+                                        leadingIcon = { Icon(Icons.Default.Key, contentDescription = null) },
+                                        enabled = !isLocalMode
                                     )
                                 }
                             }
@@ -348,7 +385,7 @@ fun AccountSelectionScreen(
                             text = "☁️ ACTIVAR RESPALDO EN LA NUBE",
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { isGuestBannerMinimized = false }
+                                .clickable { viewModel.setGuestBannerMinimized(false) }
                                 .padding(vertical = 4.dp),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.secondary,
@@ -366,7 +403,7 @@ fun AccountSelectionScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text("Modo Invitado Activo", fontWeight = FontWeight.Bold)
-                                    TextButton(onClick = { isGuestBannerMinimized = true }) {
+                                    TextButton(onClick = { viewModel.setGuestBannerMinimized(true) }) {
                                         Text("OCULTAR", style = MaterialTheme.typography.labelSmall)
                                     }
                                 }

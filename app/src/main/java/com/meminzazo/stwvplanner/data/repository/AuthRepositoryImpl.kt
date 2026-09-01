@@ -18,6 +18,7 @@ class AuthRepositoryImpl @Inject constructor(
 
     private val prefs = context.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)
     private val _localModeFlow = MutableStateFlow(prefs.getBoolean("is_local_mode", false))
+    private val _bannerMinimizedFlow = MutableStateFlow(prefs.getBoolean("guest_banner_minimized", false))
 
     override val currentUser: Flow<User?> = combine(
         callbackFlow {
@@ -62,6 +63,13 @@ class AuthRepositoryImpl @Inject constructor(
     override suspend fun signOut() {
         firebaseAuth.signOut()
         setLocalMode(false)
+    }
+
+    override fun isGuestBannerMinimized(): Flow<Boolean> = _bannerMinimizedFlow
+
+    override suspend fun setGuestBannerMinimized(minimized: Boolean) {
+        prefs.edit().putBoolean("guest_banner_minimized", minimized).apply()
+        _bannerMinimizedFlow.value = minimized
     }
 
     private fun setLocalMode(enabled: Boolean) {

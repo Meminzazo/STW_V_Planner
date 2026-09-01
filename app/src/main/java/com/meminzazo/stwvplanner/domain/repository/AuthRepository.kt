@@ -9,4 +9,7 @@ interface AuthRepository {
     suspend fun signInLocally(): Result<User>
     suspend fun isUserLocal(): Boolean
     suspend fun signOut()
+    
+    fun isGuestBannerMinimized(): Flow<Boolean>
+    suspend fun setGuestBannerMinimized(minimized: Boolean)
 }
