@@ -3,16 +3,19 @@
 
 ---
 
-## 📱 Guía para el Usuario (v3.0 - Blindaje Total)
+## 📱 Guía para el Usuario (v3.1.4 - Estabilidad & HUD Refinado)
 
-Esta versión es el mayor salto en seguridad y privacidad desde el lanzamiento de la app.
+Esta versión consolida la seguridad de la v3.0 con correcciones críticas de acceso y un HUD (interfaz) más limpio y profesional.
 
-### ✨ Novedades de la v3.0
-- 🛡️ **Firebase App Check**: Solo esta aplicación oficial puede acceder a la nube. Bloqueo total de bots y versiones modificadas.
-- 👤 **Modo Invitado (100% Local)**: ¿No quieres usar Google? Entra como invitado. Tus datos se quedan solo en tu teléfono, sin internet y con privacidad total.
-- 📱 **Interfaz Adaptable**: Diseño optimizado para que todos los botones y funciones sean visibles incluso en pantallas de pequeño formato.
-- ⚡ **Protección de Cuota**: Medidas anti-spam para asegurar que los servicios de respaldo siempre estén disponibles.
-- 🔗 **Fuente Única de Verdad**: Los regalos entre cuentas ahora son un único registro compartido. Borra o edita en un lado y se refleja en el otro al instante.
+### ✨ Novedades de la v3.1.4
+- 🛠️ **Fix Acceso Total**: Corregido el error de Google Sign-in y App Check que impedía el inicio de sesión en algunos dispositivos.
+- ⚡ **Importación Optimizada**: Se eliminó el bloqueo de seguridad incorrecto al usar códigos de transferencia, permitiendo recuperaciones instantáneas.
+- 🎨 **Rediseño HUD**:
+    - **Acciones Rápidas**: Nuevo espaciado para evitar toques accidentales.
+    - **Jerarquía Visual**: Encabezados más claros y tipografía optimizada para lectura rápida.
+    - **Desglose Inteligente**: La columna "Cuenta" ahora se oculta en Ingresos para dar más espacio a las descripciones.
+- 🥈 **Detalle de Regalos**: Visualización de totales mensuales en tono plateado y sin prefijos redundantes para una estética más limpia.
+- 👤 **Modo Invitado Mejorado**: Ahora es más sencillo vincular tu cuenta de Google desde el HUD local sin perder tus registros previos.
 
 ### ✨ Funciones Principales
 - 📊 **Cuentas Ilimitadas**: Gestiona tu cuenta principal y las de tus amigos por separado.
@@ -21,8 +24,8 @@ Esta versión es el mayor salto en seguridad y privacidad desde el lanzamiento d
 - ☁️ **Respaldo Manual**: Tú decides cuándo guardar. El botón "Respaldar" sube tu estado actual a la nube mediante sobrescritura segura.
 
 ### 📥 Instalación
-1. Descarga el archivo `STW_V_Planner_v3.0.apk` de la raíz de este proyecto.
-2. **IMPORTANTE**: Si tienes versiones anteriores (v2.1 o menor), desinstálalas primero. Las versiones viejas dejarán de funcionar por el blindaje de seguridad.
+1. Descarga el archivo `STW_V_Planner_v3.1.4.apk` de la raíz de este proyecto.
+2. **IMPORTANTE**: Si tienes versiones anteriores a la v3.0, desinstálalas primero. 
 3. Abre el archivo y permite la instalación de "Fuentes desconocidas".
 
 ---
@@ -30,13 +33,13 @@ Esta versión es el mayor salto en seguridad y privacidad desde el lanzamiento d
 ## 🕹️ Guía de Uso Rápida
 
 ### 1. Acceso
-- **Google**: Usa tu cuenta para activar el respaldo en la nube y transferencias.
-- **Invitado**: Uso puramente local. Ideal si quieres privacidad extrema o no tienes internet. **¡Puedes vincular tu cuenta de Google en cualquier momento para activar la nube sin perder tus datos!**
+- **Google**: Usa tu cuenta para activar el respaldo en la nube y sincronización.
+- **Invitado**: Uso puramente local. Ideal si quieres privacidad extrema o no tienes internet. **¡Puedes vincular Google en cualquier momento para activar la nube!**
 
 ### 2. Gestión de la Nube (Solo Google)
-- **Respaldar**: Sube tu base de datos limpia a la nube. Reemplaza lo anterior.
+- **Respaldar**: Sube tu base de datos a la nube. Reemplaza lo anterior.
 - **Restaurar**: Baja tus datos en un nuevo dispositivo.
-- **Transferencia**: Genera códigos de 8 dígitos para amigos. Los códigos ahora caducan en **1 hora** y tienen bloqueo anti-fuerza bruta.
+- **Transferencia**: Genera códigos de 10 dígitos. Los códigos caducan en **1 hora** por seguridad.
 
 ---
 
@@ -44,11 +47,8 @@ Esta versión es el mayor salto en seguridad y privacidad desde el lanzamiento d
 
 ### 🏗️ Arquitectura
 - **MVVM + Clean Architecture**.
-- **Seguridad**: Play Integrity API (App Check) + Throttling de red.
-- **Base de Datos**: Room con lógica de vinculación de transacciones compartidas.
-
-### 🚀 Publicación y Seguridad
-Este repositorio está protegido. Aunque las claves de Firebase están en el código, **App Check** asegura que nadie más pueda usarlas fuera de este APK firmado.
+- **Seguridad**: Firebase App Check (Play Integrity) + Throttling de red.
+- **Base de Datos**: Room con transacciones atómicas y `withTransaction` para integridad de datos.
 
 ---
 Creado con ❤️ para la comunidad de Fortnite STW.
