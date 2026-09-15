@@ -2,15 +2,18 @@ package com.meminzazo.stwvplanner.presentation.auth
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.CloudDownload
@@ -26,7 +29,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.AnnotatedString
@@ -40,8 +42,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.meminzazo.stwvplanner.domain.model.Account
 import com.meminzazo.stwvplanner.presentation.dashboard.DashboardViewModel
-import com.meminzazo.stwvplanner.presentation.theme.FortAccent
-import com.meminzazo.stwvplanner.presentation.theme.SpendRed
+import com.meminzazo.stwvplanner.presentation.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,14 +52,13 @@ fun AccountSelectionScreen(
     snackbarHostState: SnackbarHostState
 ) {
     val context = LocalContext.current
-    val configuration = LocalConfiguration.current
-    val titleFontSize = if (configuration.screenWidthDp < 360) 18.sp else 22.sp
 
     val accounts by viewModel.accounts.collectAsState()
     val deletedAccounts by viewModel.deletedAccounts.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val isLocalMode by viewModel.isLocalMode.collectAsState()
     val isGuestBannerMinimized by viewModel.isGuestBannerMinimized.collectAsState()
+
     var showAddAccountDialog by remember { mutableStateOf(false) }
     var showRestoreConfirm by remember { mutableStateOf(false) }
     var showCloudMenu by remember { mutableStateOf(false) }
@@ -113,15 +113,16 @@ fun AccountSelectionScreen(
     if (pendingImportUri != null) {
         AlertDialog(
             onDismissRequest = { pendingImportUri = null },
-            title = { Text("Importar Respaldo") },
+            title = { Text("Importar Respaldo", fontWeight = FontWeight.Bold) },
             text = { Text("¿Estás seguro? Esto reemplazará todos tus datos actuales por los del archivo seleccionado. Esta acción no se puede deshacer.") },
             confirmButton = {
                 Button(
                     onClick = {
                         pendingImportUri?.let { viewModel.onImportFromFile(it, context) }
                         pendingImportUri = null
-                    }
-                ) { Text("Sí, reemplazar") }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = StormCyan)
+                ) { Text("Reemplazar Datos", color = StormBackground, fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
                 TextButton(onClick = { pendingImportUri = null }) { Text("Cancelar") }
@@ -132,13 +133,16 @@ fun AccountSelectionScreen(
     if (showRestoreConfirm) {
         AlertDialog(
             onDismissRequest = { showRestoreConfirm = false },
-            title = { Text("Restaurar Respaldo") },
-            text = { Text("¿Estás seguro? Esto reemplazará todos tus datos actuales por los que están guardados en la nube.") },
+            title = { Text("Restaurar Respaldo", fontWeight = FontWeight.Bold) },
+            text = { Text("¿Estás seguro? Esto reemplazará todos tus datos locales por la copia guardada en la nube.") },
             confirmButton = {
-                TextButton(onClick = {
-                    viewModel.onRestoreClick()
-                    showRestoreConfirm = false
-                }) { Text("Restaurar") }
+                Button(
+                    onClick = {
+                        viewModel.onRestoreClick()
+                        showRestoreConfirm = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = StormCyan)
+                ) { Text("Restaurar", color = StormBackground, fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
                 TextButton(onClick = { showRestoreConfirm = false }) { Text("Cancelar") }
@@ -149,17 +153,24 @@ fun AccountSelectionScreen(
     if (showTransferCodeDialog != null) {
         AlertDialog(
             onDismissRequest = { showTransferCodeDialog = null },
-            title = { Text("Código de Transferencia") },
+            title = { Text("Código de Transferencia", fontWeight = FontWeight.Bold) },
             text = {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Comparte este código con tu amigo. Tiene una validez de 24 horas.")
+                    Text("Comparte este código de 10 dígitos. Validez: 24 horas.", style = MaterialTheme.typography.bodyMedium)
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = showTransferCodeDialog!!,
-                        style = MaterialTheme.typography.displayMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    Surface(
+                        color = StormCardElevated,
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, StormBorder)
+                    ) {
+                        Text(
+                            text = showTransferCodeDialog!!,
+                            style = MaterialTheme.typography.headlineLarge.copy(fontFamily = FontFamily.Monospace),
+                            fontWeight = FontWeight.Black,
+                            color = StormCyan,
+                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
+                        )
+                    }
                 }
             },
             confirmButton = {
@@ -172,18 +183,17 @@ fun AccountSelectionScreen(
         var code by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showImportCodeDialog = false },
-            title = { Text("Importar con Código") },
+            title = { Text("Importar con Código", fontWeight = FontWeight.Bold) },
             text = {
                 Column {
-                    Text("Ingresa el código de 10 dígitos que te compartieron:")
+                    Text("Ingresa el código numérico de 10 dígitos:", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.height(12.dp))
                     OutlinedTextField(
                         value = code,
                         onValueChange = {
-                            if (it.length <= 10 && it.all { char -> char.isDigit() }) {
-                                code = it
-                            }
+                            if (it.length <= 10 && it.all { c -> c.isDigit() }) code = it
                         },
-                        label = { Text("Código Numérico") },
+                        label = { Text("Código") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
@@ -196,8 +206,9 @@ fun AccountSelectionScreen(
                         viewModel.onImportWithCode(code)
                         showImportCodeDialog = false
                     },
-                    enabled = code.length == 10
-                ) { Text("Importar") }
+                    enabled = code.length == 10,
+                    colors = ButtonDefaults.buttonColors(containerColor = StormCyan)
+                ) { Text("Importar", color = StormBackground, fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
                 TextButton(onClick = { showImportCodeDialog = false }) { Text("Cancelar") }
@@ -208,8 +219,8 @@ fun AccountSelectionScreen(
     if (showExportOptionsDialog) {
         AlertDialog(
             onDismissRequest = { showExportOptionsDialog = false },
-            title = { Text("Exportar Respaldo") },
-            text = { Text("¿Cómo deseas guardar tu respaldo?") },
+            title = { Text("Exportar Respaldo", fontWeight = FontWeight.Bold) },
+            text = { Text("¿Cómo deseas guardar la copia de seguridad?") },
             confirmButton = {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
@@ -220,28 +231,30 @@ fun AccountSelectionScreen(
                             showExportOptionsDialog = false
                             viewModel.onConfirmSaveExport()
                         },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = StormCardElevated)
                     ) {
-                        Icon(Icons.Default.FileUpload, contentDescription = null)
+                        Icon(Icons.Default.FileUpload, contentDescription = null, tint = StormCyan)
                         Spacer(Modifier.width(8.dp))
-                        Text("Guardar en dispositivo")
+                        Text("Guardar en archivo local", color = StormTextMain)
                     }
                     OutlinedButton(
                         onClick = {
                             showExportOptionsDialog = false
                             viewModel.onPerformShare(context)
                         },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        border = BorderStroke(1.dp, StormBorder)
                     ) {
-                        Icon(Icons.Default.CloudUpload, contentDescription = null)
+                        Icon(Icons.Default.CloudUpload, contentDescription = null, tint = StormAmber)
                         Spacer(Modifier.width(8.dp))
-                        Text("Compartir directamente")
+                        Text("Compartir directamente", color = StormTextMain)
                     }
                     TextButton(
                         onClick = { showExportOptionsDialog = false },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Cancelar")
+                        Text("Cancelar", color = StormTextMuted)
                     }
                 }
             }
@@ -252,17 +265,19 @@ fun AccountSelectionScreen(
         val clipboardManager = LocalClipboardManager.current
         AlertDialog(
             onDismissRequest = { showDebugDialog = null },
-            title = { Text("Identificador de Desarrollador") },
+            title = { Text("Identificador de Desarrollador", fontWeight = FontWeight.Bold) },
             text = {
                 Column {
                     Text(
-                        "Este código permite que este dispositivo acceda a los servicios de Firebase para pruebas. Solo compártelo con el administrador del proyecto.",
-                        style = MaterialTheme.typography.bodySmall
+                        "Código para acceso a servicios de prueba.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = StormTextMuted
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                     Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        shape = MaterialTheme.shapes.small,
+                        color = StormCardElevated,
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, StormBorder),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
@@ -272,7 +287,8 @@ fun AccountSelectionScreen(
                                 fontFamily = FontFamily.Monospace,
                                 fontWeight = FontWeight.Bold
                             ),
-                            textAlign = TextAlign.Center
+                            textAlign = TextAlign.Center,
+                            color = StormCyan
                         )
                     }
                 }
@@ -283,64 +299,93 @@ fun AccountSelectionScreen(
                         clipboardManager.setText(AnnotatedString(showDebugDialog!!))
                         showDebugDialog = null
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = StormCyan)
                 ) {
-                    Text("Copiar y Cerrar")
+                    Text("Copiar y Cerrar", color = StormBackground, fontWeight = FontWeight.Bold)
                 }
             }
         )
     }
 
     Scaffold(
+        containerColor = StormBackground,
         topBar = {
             TopAppBar(
-                title = { Text("MIS CUENTAS", fontWeight = FontWeight.Bold, fontSize = titleFontSize) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = StormBackground,
+                    titleContentColor = StormTextMain,
+                    actionIconContentColor = StormTextMuted
+                ),
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "STW PLANNER",
+                            fontWeight = FontWeight.Black,
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Surface(
+                            color = StormCardElevated,
+                            shape = RoundedCornerShape(6.dp),
+                            border = BorderStroke(1.dp, StormBorder)
+                        ) {
+                            Text(
+                                text = "CUENTAS",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = StormCyan,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                },
                 actions = {
                     if (isLoading) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp).padding(end = 12.dp),
+                            modifier = Modifier.size(20.dp).padding(end = 12.dp),
                             strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.primary
+                            color = StormCyan
                         )
                     } else {
                         Box {
                             IconButton(onClick = {
                                 showCloudMenu = true
-                                showCloudOptions = false // Cerrada por defecto al abrir el menú principal
+                                showCloudOptions = false
                             }) {
-                                Icon(Icons.Default.Cloud, contentDescription = "Gestión de Datos")
+                                Icon(Icons.Default.Cloud, contentDescription = "Gestión de Datos", tint = StormCyan)
                             }
                             DropdownMenu(
                                 expanded = showCloudMenu,
-                                onDismissRequest = { showCloudMenu = false }
+                                onDismissRequest = { showCloudMenu = false },
+                                containerColor = StormCardElevated,
+                                border = BorderStroke(1.dp, StormBorder)
                             ) {
-                                // Sección de Archivo (Local) - Visible siempre y arriba
                                 Text(
-                                    "📁 ARCHIVO LOCAL",
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    "RESPALDO LOCAL",
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = FortAccent
+                                    color = StormCyan,
+                                    fontWeight = FontWeight.Bold
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("Exportar Respaldo") },
+                                    text = { Text("Exportar archivo JSON", color = StormTextMain) },
                                     onClick = {
                                         viewModel.onStartExport()
                                         showCloudMenu = false
                                     },
-                                    leadingIcon = { Icon(Icons.Default.FileUpload, contentDescription = null) }
+                                    leadingIcon = { Icon(Icons.Default.FileUpload, contentDescription = null, tint = StormCyan) }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("Importar Respaldo") },
+                                    text = { Text("Importar archivo JSON", color = StormTextMain) },
                                     onClick = {
                                         filePickerLauncher.launch("application/json")
                                         showCloudMenu = false
                                     },
-                                    leadingIcon = { Icon(Icons.Default.FileDownload, contentDescription = null) }
+                                    leadingIcon = { Icon(Icons.Default.FileDownload, contentDescription = null, tint = StormCyan) }
                                 )
 
-                                HorizontalDivider()
+                                HorizontalDivider(color = StormBorder)
 
-                                // Sección de Nube (Firebase) - Minimizada por defecto
                                 DropdownMenuItem(
                                     text = {
                                         Row(
@@ -349,11 +394,12 @@ fun AccountSelectionScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                "☁️ NUBE (FIREBASE)",
+                                                "NUBE FIREBASE",
                                                 style = MaterialTheme.typography.labelSmall,
-                                                color = if (isLocalMode) Color.Gray else MaterialTheme.colorScheme.primary
+                                                color = if (isLocalMode) StormTextMuted else StormAmber,
+                                                fontWeight = FontWeight.Bold
                                             )
-                                            Text(if (showCloudOptions) "▲" else "▼", fontSize = 10.sp)
+                                            Text(if (showCloudOptions) "▲" else "▼", fontSize = 10.sp, color = StormTextMuted)
                                         }
                                     },
                                     onClick = { showCloudOptions = !showCloudOptions }
@@ -361,53 +407,58 @@ fun AccountSelectionScreen(
 
                                 if (showCloudOptions) {
                                     DropdownMenuItem(
-                                        text = { Text("Respaldar en la Nube") },
+                                        text = { Text("Subir a la nube", color = StormTextMain) },
                                         onClick = {
                                             viewModel.onBackupClick()
                                             showCloudMenu = false
                                         },
-                                        leadingIcon = { Icon(Icons.Default.CloudUpload, contentDescription = null) },
+                                        leadingIcon = { Icon(Icons.Default.CloudUpload, contentDescription = null, tint = StormAmber) },
                                         enabled = !isLocalMode
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("Restaurar de la Nube") },
+                                        text = { Text("Bajar de la nube", color = StormTextMain) },
                                         onClick = {
                                             showRestoreConfirm = true
                                             showCloudMenu = false
                                         },
-                                        leadingIcon = { Icon(Icons.Default.CloudDownload, contentDescription = null) },
+                                        leadingIcon = { Icon(Icons.Default.CloudDownload, contentDescription = null, tint = StormAmber) },
                                         enabled = !isLocalMode
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("Generar código") },
+                                        text = { Text("Generar código (10 dígitos)", color = StormTextMain) },
                                         onClick = {
                                             viewModel.onGenerateTransferCode()
                                             showCloudMenu = false
                                         },
-                                        leadingIcon = { Icon(Icons.Default.Key, contentDescription = null) },
+                                        leadingIcon = { Icon(Icons.Default.Key, contentDescription = null, tint = StormAmber) },
                                         enabled = !isLocalMode
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("Importar código") },
+                                        text = { Text("Importar con código", color = StormTextMain) },
                                         onClick = {
                                             viewModel.onStartImportCode()
                                             showCloudMenu = false
                                         },
-                                        leadingIcon = { Icon(Icons.Default.Key, contentDescription = null) },
-                                        enabled = !isLocalMode
+                                        leadingIcon = { Icon(Icons.Default.Key, contentDescription = null, tint = StormAmber) },
+                                        enabled = true
                                     )
                                 }
                             }
                         }
                     }
                     IconButton(onClick = { viewModel.onSignOutClick() }) {
-                        Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Cerrar Sesión")
+                        Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Cerrar Sesión", tint = SpendRed.copy(alpha = 0.8f))
                     }
                 }
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAddAccountDialog = true }) {
+            FloatingActionButton(
+                onClick = { showAddAccountDialog = true },
+                containerColor = StormCyan,
+                contentColor = StormBackground,
+                shape = RoundedCornerShape(16.dp)
+            ) {
                 Icon(Icons.Default.Add, contentDescription = "Añadir Cuenta")
             }
         }
@@ -426,27 +477,40 @@ fun AccountSelectionScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp),
+                .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             if (isLocalMode) {
                 item {
                     if (isGuestBannerMinimized) {
-                        // Banner minimizado: solo un texto pequeño y clickeable
-                        Text(
-                            text = "☁️ ACTIVAR RESPALDO EN LA NUBE",
+                        Surface(
+                            color = StormCardElevated,
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, StormBorder),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable { viewModel.setGuestBannerMinimized(false) }
-                                .padding(vertical = 4.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.secondary,
-                            fontWeight = FontWeight.Bold
-                        )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "☁️ Modo Local Activo · Conectar Nube",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = StormCyan,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text("MOSTRAR", style = MaterialTheme.typography.labelSmall, color = StormTextMuted)
+                            }
+                        }
                     } else {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(containerColor = StormCardElevated),
+                            border = BorderStroke(1.dp, StormBorder)
                         ) {
                             Column(Modifier.padding(16.dp)) {
                                 Row(
@@ -454,18 +518,20 @@ fun AccountSelectionScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("Modo Invitado Activo", fontWeight = FontWeight.Bold)
+                                    Text("MODO INVITADO (LOCAL)", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = StormAmber)
                                     TextButton(onClick = { viewModel.setGuestBannerMinimized(true) }) {
-                                        Text("OCULTAR", style = MaterialTheme.typography.labelSmall)
+                                        Text("OCULTAR", style = MaterialTheme.typography.labelSmall, color = StormTextMuted)
                                     }
                                 }
-                                Text("Tus datos no están respaldados en la nube.", style = MaterialTheme.typography.bodySmall)
-                                Spacer(Modifier.height(8.dp))
+                                Text("Tus registros solo están en este teléfono. Vincula Google para activar respaldo automático.", style = MaterialTheme.typography.bodySmall, color = StormTextMuted)
+                                Spacer(Modifier.height(10.dp))
                                 Button(
                                     onClick = { viewModel.onUpgradeToGoogle(context) },
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier.fillMaxWidth().height(42.dp),
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = StormCyan)
                                 ) {
-                                    Text("VINCULAR CON GOOGLE")
+                                    Text("VINCULAR CON GOOGLE", fontWeight = FontWeight.Bold, color = StormBackground, style = MaterialTheme.typography.labelLarge)
                                 }
                             }
                         }
@@ -473,8 +539,33 @@ fun AccountSelectionScreen(
                 }
             }
 
+            if (accounts.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = StormCardSurface),
+                        border = BorderStroke(1.dp, StormBorder)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(32.dp).fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text("SIN CUENTAS REGISTRADAS", style = MaterialTheme.typography.labelLarge, color = StormTextMuted)
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "Pulsa el botón '+' abajo para registrar tu primera cuenta de Salvar el Mundo.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = StormTextMuted,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+            }
+
             items(accounts) { account ->
-                AccountItem(
+                AccountCardItem(
                     account = account,
                     onClick = { onAccountSelected(account.id) },
                     onDelete = { viewModel.onDeleteAccountClick(account.id) }
@@ -483,16 +574,16 @@ fun AccountSelectionScreen(
 
             if (deletedAccounts.isNotEmpty()) {
                 item {
-                    Spacer(Modifier.height(24.dp))
+                    Spacer(Modifier.height(16.dp))
                     Text(
-                        "GESTIONAR CUENTAS OCULTAS",
+                        "CUENTAS OCULTAS",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color.Gray,
-                        modifier = Modifier.padding(bottom = 8.dp)
+                        color = StormTextMuted,
+                        fontWeight = FontWeight.Bold
                     )
                 }
                 items(deletedAccounts) { account ->
-                    DeletedAccountItem(
+                    DeletedAccountCardItem(
                         account = account,
                         onRestore = { viewModel.onRestoreAccountClick(account.id) }
                     )
@@ -500,7 +591,7 @@ fun AccountSelectionScreen(
             }
 
             item {
-                Spacer(Modifier.height(32.dp))
+                Spacer(Modifier.height(24.dp))
                 Text(
                     text = viewModel.appVersion,
                     modifier = Modifier
@@ -512,7 +603,7 @@ fun AccountSelectionScreen(
                         .padding(16.dp),
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color.Gray.copy(alpha = 0.5f)
+                    color = StormTextMuted.copy(alpha = 0.5f)
                 )
             }
         }
@@ -520,7 +611,7 @@ fun AccountSelectionScreen(
 }
 
 @Composable
-fun AccountItem(
+fun AccountCardItem(
     account: Account,
     onClick: () -> Unit,
     onDelete: () -> Unit
@@ -530,17 +621,17 @@ fun AccountItem(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Eliminar Cuenta") },
-            text = { Text("¿Estás seguro de que deseas eliminar esta cuenta? Se perderán todos sus datos.") },
+            title = { Text("Eliminar Cuenta", fontWeight = FontWeight.Bold) },
+            text = { Text("¿Deseas eliminar '${account.name}'? Se conservará su historial si decides restaurarla después.") },
             confirmButton = {
                 TextButton(
                     onClick = {
                         onDelete()
                         showDeleteConfirm = false
                     },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    colors = ButtonDefaults.textButtonColors(contentColor = SpendRed)
                 ) {
-                    Text("Eliminar")
+                    Text("Eliminar", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -555,45 +646,93 @@ fun AccountItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = StormCardSurface),
+        border = BorderStroke(1.dp, StormBorder),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
             modifier = Modifier
-                .padding(16.dp)
+                .padding(18.dp)
                 .fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-                Text(
-                    text = account.name,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                if (account.isMain) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "Cuenta Principal",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
+                        text = account.name,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Black,
+                        color = StormTextMain
+                    )
+                    if (account.isMain) {
+                        Spacer(Modifier.width(8.dp))
+                        Surface(
+                            color = StormCyan.copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(6.dp),
+                            border = BorderStroke(0.5.dp, StormCyan.copy(alpha = 0.4f))
+                        ) {
+                            Text(
+                                text = "PRINCIPAL",
+                                fontSize = 9.sp,
+                                color = StormCyan,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(6.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "${account.balance}",
+                        style = MaterialTheme.typography.titleLarge.copy(fontFamily = FontFamily.Monospace),
+                        fontWeight = FontWeight.Black,
+                        color = StormAmber
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "V-BUCKS",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = StormAmber.copy(alpha = 0.7f),
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
-            IconButton(onClick = { showDeleteConfirm = true }) {
-                Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = MaterialTheme.colorScheme.error)
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { showDeleteConfirm = true }, modifier = Modifier.size(36.dp)) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Eliminar",
+                        tint = SpendRed.copy(alpha = 0.6f),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = "Abrir",
+                    tint = StormTextMuted,
+                    modifier = Modifier.size(24.dp)
+                )
             }
         }
     }
 }
 
 @Composable
-fun DeletedAccountItem(
+fun DeletedAccountCardItem(
     account: Account,
     onRestore: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color.Gray.copy(alpha = 0.1f)),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color.Gray.copy(alpha = 0.2f))
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = StormCardSurface.copy(alpha = 0.5f)),
+        border = BorderStroke(1.dp, StormBorder.copy(alpha = 0.5f))
     ) {
         Row(
             modifier = Modifier.padding(12.dp).fillMaxWidth(),
@@ -601,11 +740,11 @@ fun DeletedAccountItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text(account.name, style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
-                Text("OCULTA", fontSize = 10.sp, color = Color.Gray)
+                Text(account.name, style = MaterialTheme.typography.bodyMedium, color = StormTextMuted, fontWeight = FontWeight.Bold)
+                Text("OCULTA", fontSize = 9.sp, color = StormTextMuted)
             }
             IconButton(onClick = onRestore, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.Restore, contentDescription = "Restaurar", tint = FortAccent)
+                Icon(Icons.Default.Restore, contentDescription = "Restaurar", tint = StormCyan, modifier = Modifier.size(18.dp))
             }
         }
     }
@@ -621,7 +760,7 @@ fun AddAccountDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Nueva Cuenta") },
+        title = { Text("Nueva Cuenta", fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
@@ -632,15 +771,18 @@ fun AddAccountDialog(
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = {
                         focusManager.clearFocus()
-                        onConfirm(name)
+                        if (name.isNotBlank()) onConfirm(name.trim())
                     }),
                     modifier = Modifier.fillMaxWidth()
                 )
             }
         },
         confirmButton = {
-            Button(onClick = { onConfirm(name) }) {
-                Text("Crear")
+            Button(
+                onClick = { if (name.isNotBlank()) onConfirm(name.trim()) },
+                colors = ButtonDefaults.buttonColors(containerColor = StormCyan)
+            ) {
+                Text("Crear", color = StormBackground, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {

@@ -2,27 +2,37 @@ package com.meminzazo.stwvplanner.presentation.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Fortnite/STW Palette
-val FortBlue = Color(0xFF2196F3)
-val FortPurple = Color(0xFF9C27B0)
-val FortDarkBlue = Color(0xFF1A237E)
-val FortAccent = Color(0xFF00E5FF)
+// --- STORM HUD PALETTE ---
+val StormBackground = Color(0xFF0D1117)
+val StormCardSurface = Color(0xFF161B22)
+val StormCardElevated = Color(0xFF21262D)
+val StormBorder = Color(0xFF30363D)
 
-// V-Bucks Style
-val VBucksGold = Color(0xFFFFD700)
-val VBucksSilver = Color(0xFFE0E0E0)
+// Accents & Typography
+val StormCyan = Color(0xFF38BDF8)
+val StormIndigo = Color(0xFF818CF8)
+val StormAmber = Color(0xFFF59E0B) // V-Bucks Gold
+val StormTextMain = Color(0xFFF1F5F9)
+val StormTextMuted = Color(0xFF94A3B8)
 
-// Backgrounds
-val StwBackground = Color(0xFF121212)
-val StwCardSurface = Color(0xFF1E1E1E)
+// Status & Action Colors
+val EarnGreen = Color(0xFF22C55E)
+val SpendRed = Color(0xFFEF4444)
+val AlertBlue = Color(0xFF0EA5E9)
+val PurpleAccent = Color(0xFFA855F7)
+val YellowAccent = Color(0xFFEAB308)
 
-// Status Colors (Vibrant Neon)
-val EarnGreen = Color(0xFF00E676)  // Green A400
-val SpendRed = Color(0xFFFF1744)   // Red A400
-val AlertBlue = Color(0xFF00B0FF)  // Blue A400
+// Legacy Aliases for compatibility
+val FortBlue = StormCyan
+val FortPurple = PurpleAccent
+val FortDarkBlue = StormCardElevated
+val FortAccent = StormCyan
+val VBucksGold = StormAmber
+val VBucksSilver = StormTextMuted
+val StwBackground = StormBackground
+val StwCardSurface = StormCardSurface
 
-// Button Colors (Updated to vibrant versions)
 val DailyButtonColor = EarnGreen
-val AlertButtonColor = Color(0xFFD500F9)    // Purple A400
-val ExternalButtonColor = Color(0xFFFFEA00) // Yellow A400
+val AlertButtonColor = PurpleAccent
+val ExternalButtonColor = YellowAccent
 val ExpenseButtonColor = SpendRed

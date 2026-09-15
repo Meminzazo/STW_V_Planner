@@ -80,8 +80,7 @@ class MainActivity : ComponentActivity() {
                     } else {
                         NavHost(
                             navController = navController,
-                            startDestination = Screen.AccountSelection.route,
-                            modifier = Modifier.padding(innerPadding)
+                            startDestination = Screen.AccountSelection.route
                         ) {
                             composable(Screen.AccountSelection.route) {
                                 AccountSelectionScreen(

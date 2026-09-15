@@ -1,7 +1,9 @@
 package com.meminzazo.stwvplanner.presentation.common
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -10,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -18,6 +21,7 @@ import com.meminzazo.stwvplanner.domain.model.Account
 import com.meminzazo.stwvplanner.domain.model.Transaction
 import com.meminzazo.stwvplanner.domain.model.TransactionType
 import com.meminzazo.stwvplanner.domain.model.VBucksSource
+import com.meminzazo.stwvplanner.presentation.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -32,17 +36,16 @@ fun ManualEntryDialog(
     onConfirm: (Int, TransactionType, VBucksSource, String, Long, Long?, String?) -> Unit
 ) {
     var amount by remember { mutableStateOf(transactionToEdit?.amount?.toString() ?: "") }
-    var type by remember { 
-        mutableStateOf(transactionToEdit?.type ?: initialType ?: TransactionType.EARN) 
+    var type by remember {
+        mutableStateOf(transactionToEdit?.type ?: initialType ?: TransactionType.EARN)
     }
-    var source by remember { 
-        mutableStateOf(transactionToEdit?.source ?: initialSource ?: VBucksSource.DAILY) 
+    var source by remember {
+        mutableStateOf(transactionToEdit?.source ?: initialSource ?: VBucksSource.DAILY)
     }
     var description by remember { mutableStateOf(transactionToEdit?.description ?: "") }
     var dateMillis by remember { mutableStateOf(transactionToEdit?.date ?: System.currentTimeMillis()) }
     val focusManager = LocalFocusManager.current
 
-    // Para gastos (GIFT)
     var selectedReceiverId by remember { mutableStateOf<Long?>(transactionToEdit?.receiverAccountId) }
     var selectedReceiverName by remember { mutableStateOf<String?>(transactionToEdit?.recipientAccountName) }
 
@@ -75,11 +78,12 @@ fun ManualEntryDialog(
                     )
                     dateMillis = localCalendar.timeInMillis
                     showDatePicker = false
-                }) { Text("Aceptar") }
+                }) { Text("Aceptar", color = StormCyan, fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("Cancelar") }
-            }
+                TextButton(onClick = { showDatePicker = false }) { Text("Cancelar", color = StormTextMuted) }
+            },
+            colors = DatePickerDefaults.colors(containerColor = StormCardSurface)
         ) {
             DatePicker(state = datePickerState)
         }
@@ -87,37 +91,56 @@ fun ManualEntryDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (transactionToEdit == null) "Registro Manual" else "Editar Registro") },
+        containerColor = StormCardSurface,
+        shape = RoundedCornerShape(20.dp),
+        title = {
+            Text(
+                text = if (transactionToEdit == null) "Registro manual" else "Editar registro",
+                fontWeight = FontWeight.Bold,
+                color = StormTextMain
+            )
+        },
         text = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // Tipo: Ingreso / Gasto
                 SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                     SegmentedButton(
                         selected = type == TransactionType.EARN,
-                        onClick = { 
-                            type = TransactionType.EARN 
+                        onClick = {
+                            type = TransactionType.EARN
                             if (transactionToEdit == null) source = VBucksSource.DAILY
                             selectedReceiverId = null
                             selectedReceiverName = null
                         },
-                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                        colors = SegmentedButtonDefaults.colors(
+                            activeContainerColor = EarnGreen.copy(alpha = 0.2f),
+                            activeContentColor = EarnGreen,
+                            inactiveContainerColor = StormCardElevated,
+                            inactiveContentColor = StormTextMuted
+                        )
                     ) {
-                        Text("Ingreso")
+                        Text("Ingreso", fontWeight = FontWeight.Bold)
                     }
                     SegmentedButton(
                         selected = type == TransactionType.SPEND,
-                        onClick = { 
-                            type = TransactionType.SPEND 
+                        onClick = {
+                            type = TransactionType.SPEND
                             if (transactionToEdit == null) source = VBucksSource.SHOP
                         },
-                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                        colors = SegmentedButtonDefaults.colors(
+                            activeContainerColor = SpendRed.copy(alpha = 0.2f),
+                            activeContentColor = SpendRed,
+                            inactiveContainerColor = StormCardElevated,
+                            inactiveContentColor = StormTextMuted
+                        )
                     ) {
-                        Text("Gasto")
+                        Text("Gasto", fontWeight = FontWeight.Bold)
                     }
                 }
 
@@ -130,7 +153,8 @@ fun ManualEntryDialog(
                         imeAction = ImeAction.Next
                     ),
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
                 )
 
                 ExposedDropdownMenuBox(
@@ -157,11 +181,14 @@ fun ManualEntryDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true),
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedSource) }
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedSource) },
+                        shape = RoundedCornerShape(12.dp)
                     )
                     ExposedDropdownMenu(
                         expanded = expandedSource,
-                        onDismissRequest = { expandedSource = false }
+                        onDismissRequest = { expandedSource = false },
+                        containerColor = StormCardElevated,
+                        border = BorderStroke(1.dp, StormBorder)
                     ) {
                         if (type == TransactionType.EARN) {
                             listOf(
@@ -171,7 +198,7 @@ fun ManualEntryDialog(
                                 VBucksSource.EXTERNAL to "Otro"
                             ).forEach { (s, name) ->
                                 DropdownMenuItem(
-                                    text = { Text(name) },
+                                    text = { Text(name, color = StormTextMain) },
                                     onClick = {
                                         source = s
                                         expandedSource = false
@@ -181,7 +208,7 @@ fun ManualEntryDialog(
                         } else {
                             dependents.forEach { dep ->
                                 DropdownMenuItem(
-                                    text = { Text(dep.name) },
+                                    text = { Text(dep.name, color = StormTextMain) },
                                     onClick = {
                                         source = VBucksSource.GIFT
                                         selectedReceiverId = dep.id
@@ -191,7 +218,7 @@ fun ManualEntryDialog(
                                 )
                             }
                             DropdownMenuItem(
-                                text = { Text("Otros") },
+                                text = { Text("Otros", color = StormTextMain) },
                                 onClick = {
                                     source = VBucksSource.SHOP
                                     selectedReceiverId = null
@@ -206,19 +233,28 @@ fun ManualEntryDialog(
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
-                    label = { Text("Descripción (Opcional)") },
+                    label = { Text("Descripción (opcional)") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { 
+                    keyboardActions = KeyboardActions(onDone = {
                         focusManager.clearFocus()
-                        handleConfirm() 
+                        handleConfirm()
                     }),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
                 )
 
                 OutlinedCard(
                     onClick = { showDatePicker = true },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = StormCardElevated,
+                        contentColor = StormTextMain,
+                        disabledContainerColor = StormCardElevated,
+                        disabledContentColor = StormTextMuted
+                    ),
+                    border = BorderStroke(1.dp, StormBorder)
                 ) {
                     Row(
                         modifier = Modifier
@@ -227,12 +263,12 @@ fun ManualEntryDialog(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Fecha", style = MaterialTheme.typography.bodyMedium)
+                        Text("Fecha", style = MaterialTheme.typography.bodyMedium, color = StormTextMuted)
                         Text(
                             text = sdf.format(Date(dateMillis)),
-                            style = MaterialTheme.typography.bodyLarge,
+                            style = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                            color = StormCyan
                         )
                     }
                 }
@@ -241,14 +277,16 @@ fun ManualEntryDialog(
         confirmButton = {
             Button(
                 onClick = ::handleConfirm,
-                enabled = amount.isNotBlank()
+                enabled = amount.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = StormCyan),
+                shape = RoundedCornerShape(10.dp)
             ) {
-                Text("Guardar")
+                Text("Guardar", fontWeight = FontWeight.Bold, color = StormBackground)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancelar")
+                Text("Cancelar", color = StormTextMuted)
             }
         }
     )

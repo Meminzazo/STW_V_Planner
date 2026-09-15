@@ -23,6 +23,8 @@ class AuthRepositoryImpl @Inject constructor(
     private val _localModeFlow = MutableStateFlow(prefs.getBoolean("is_local_mode", false))
     private val _bannerMinimizedFlow = MutableStateFlow(prefs.getBoolean("guest_banner_minimized", false))
 
+    override val isUserLocal: Flow<Boolean> = _localModeFlow.asStateFlow()
+
     override val currentUser: Flow<User?> = combine(
         callbackFlow {
             val authListener = FirebaseAuth.AuthStateListener { auth ->
@@ -57,10 +59,6 @@ class AuthRepositoryImpl @Inject constructor(
     override suspend fun signInLocally(): Result<User> {
         setLocalMode(true)
         return Result.success(User(id = "local_user", email = "offline@local", displayName = "Invitado", photoUrl = null))
-    }
-
-    override suspend fun isUserLocal(): Boolean {
-        return _localModeFlow.value
     }
 
     override suspend fun signOut() {

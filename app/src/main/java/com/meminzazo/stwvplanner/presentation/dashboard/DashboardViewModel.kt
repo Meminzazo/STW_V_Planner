@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.core.content.FileProvider
 import androidx.credentials.CredentialManager
@@ -55,8 +56,8 @@ class DashboardViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(false)
     val isLoading = _isLoading.asStateFlow()
 
-    private val _isLocalMode = MutableStateFlow(false)
-    val isLocalMode = _isLocalMode.asStateFlow()
+    val isLocalMode: StateFlow<Boolean> = authRepository.isUserLocal
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val isGuestBannerMinimized: StateFlow<Boolean> = authRepository.isGuestBannerMinimized()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
@@ -78,9 +79,7 @@ class DashboardViewModel @Inject constructor(
     val uiEvent = _uiEvent.asSharedFlow()
 
     init {
-        viewModelScope.launch {
-            _isLocalMode.value = authRepository.isUserLocal()
-        }
+        // cleanupOldExports se llama desde la UI, no hace falta aquí
     }
 
     /**
@@ -99,18 +98,22 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    private fun isCloudActionAllowed(): Boolean {
-        if (_isLocalMode.value) {
+    private fun isCloudActionAllowed(isImport: Boolean = false, updateLastActionTime: Boolean = true): Boolean {
+        if (isLocalMode.value && !isImport) {
+            Log.w("DashboardVM", "Acción de nube bloqueada: Modo Local activo")
             viewModelScope.launch { _uiEvent.emit(UiEvent.ShowError("La nube está deshabilitada en modo local")) }
             return false
         }
         val now = System.currentTimeMillis()
         if (now - lastActionTime < CLOUD_COOLDOWN) {
             val wait = ((CLOUD_COOLDOWN - (now - lastActionTime)) / 1000) + 1
+            Log.w("DashboardVM", "Acción de nube bloqueada: Cooldown ($wait s)")
             viewModelScope.launch { _uiEvent.emit(UiEvent.ShowError("Seguridad: Espera $wait segundos")) }
             return false
         }
-        lastActionTime = now
+        if (updateLastActionTime) {
+            lastActionTime = now
+        }
         return true
     }
 
@@ -185,7 +188,7 @@ class DashboardViewModel @Inject constructor(
     }
 
     fun onStartImportCode() {
-        if (isCloudActionAllowed()) {
+        if (isCloudActionAllowed(isImport = true, updateLastActionTime = false)) {
             viewModelScope.launch {
                 _uiEvent.emit(UiEvent.ShowImportCodeDialog)
             }
@@ -193,20 +196,32 @@ class DashboardViewModel @Inject constructor(
     }
 
     fun onImportWithCode(code: String) {
-        if (!isImportAllowed() || !isCloudActionAllowed()) return
+        Log.d("DashboardVM", "onImportWithCode llamado con código: $code")
+        val importAllowed = isImportAllowed()
+        val cloudAllowed = isCloudActionAllowed(isImport = true)
+        
+        if (!importAllowed || !cloudAllowed) {
+            Log.w("DashboardVM", "Importación bloqueada: isImportAllowed=$importAllowed, isCloudActionAllowed=$cloudAllowed")
+            return
+        }
         viewModelScope.launch {
             // Limpieza básica de la entrada
             val cleanCode = code.trim().filter { it.isDigit() }
             if (cleanCode.length != 10) {
+                Log.w("DashboardVM", "Código inválido (longitud incorrecta): $cleanCode")
                 _uiEvent.emit(UiEvent.ShowError("El código debe tener 10 números"))
                 return@launch
             }
             _isLoading.value = true
+            Log.d("DashboardVM", "Llamando a syncRepository.restoreFromTransferCode...")
             val result = syncRepository.restoreFromTransferCode(cleanCode)
             if (result.isSuccess) {
+                Log.d("DashboardVM", "Importación exitosa")
                 importFailCount = 0
                 _uiEvent.emit(UiEvent.ShowError("Registros importados con éxito"))
             } else {
+                val error = result.exceptionOrNull()
+                Log.e("DashboardVM", "Error en la importación: ${error?.message}", error)
                 importFailCount++
                 if (importFailCount >= 3) {
                     lockoutUntil = System.currentTimeMillis() + 900000L
@@ -359,7 +374,6 @@ class DashboardViewModel @Inject constructor(
                     val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
                     val res = authRepository.signInWithGoogle(googleIdTokenCredential.idToken)
                     if (res.isSuccess) {
-                        _isLocalMode.value = false
                         _uiEvent.emit(UiEvent.ShowError("¡Cuenta vinculada con éxito!"))
                     } else {
                         _uiEvent.emit(UiEvent.ShowError("Firebase: ${res.exceptionOrNull()?.message}"))

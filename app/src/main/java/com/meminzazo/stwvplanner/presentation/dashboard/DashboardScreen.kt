@@ -1,10 +1,12 @@
 package com.meminzazo.stwvplanner.presentation.dashboard
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Add
@@ -17,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -27,9 +30,6 @@ import com.meminzazo.stwvplanner.domain.model.VBucksSource
 import com.meminzazo.stwvplanner.presentation.common.ManualEntryDialog
 import com.meminzazo.stwvplanner.presentation.theme.*
 
-/**
- * Pantalla de inicio con la lista de cuentas principales.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
@@ -47,7 +47,7 @@ fun DashboardScreen(
                 is DashboardViewModel.UiEvent.ShowError -> {
                     snackbarHostState.showSnackbar(event.message)
                 }
-                else -> { /* Otros eventos */ }
+                else -> {}
             }
         }
     }
@@ -63,15 +63,20 @@ fun DashboardScreen(
     }
 
     Scaffold(
+        containerColor = StormBackground,
         topBar = {
             TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = StormBackground,
+                    titleContentColor = StormTextMain
+                ),
                 title = { Text("MIS CUENTAS", fontWeight = FontWeight.Black) },
                 actions = {
                     if (isLoading) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp).padding(end = 12.dp), strokeWidth = 2.dp)
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp).padding(end = 12.dp), strokeWidth = 2.dp, color = StormCyan)
                     } else {
                         IconButton(onClick = { viewModel.onSyncClick() }) {
-                            Icon(Icons.Default.CloudSync, contentDescription = "Sincronizar", tint = FortAccent)
+                            Icon(Icons.Default.CloudSync, contentDescription = "Sincronizar", tint = StormCyan)
                         }
                     }
                     IconButton(onClick = { viewModel.onSignOutClick() }) {
@@ -83,8 +88,9 @@ fun DashboardScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showAddAccountDialog = true },
-                containerColor = FortAccent,
-                contentColor = Color.Black
+                containerColor = StormCyan,
+                contentColor = StormBackground,
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Añadir")
             }
@@ -95,15 +101,15 @@ fun DashboardScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                Text("CUENTAS ACTIVAS", style = MaterialTheme.typography.labelLarge, color = FortAccent)
+                Text("CUENTAS ACTIVAS", style = MaterialTheme.typography.labelSmall, color = StormCyan, fontWeight = FontWeight.Bold)
             }
 
             if (accounts.isEmpty()) {
                 item {
-                    Text("No hay cuentas registradas. Crea una presionando el botón '+'.", color = Color.Gray)
+                    Text("No hay cuentas registradas. Crea una con el botón '+'.", color = StormTextMuted)
                 }
             }
 
@@ -141,21 +147,21 @@ fun AccountCard(
     var manualEntryInitialSource by remember { mutableStateOf<VBucksSource?>(null) }
 
     val configuration = LocalConfiguration.current
-    val buttonFontSize = if (configuration.screenWidthDp < 360) 10.sp else 12.sp
-    val buttonHeight = if (configuration.screenWidthDp < 360) 40.dp else 44.dp
+    val buttonFontSize = if (configuration.screenWidthDp < 360) 11.sp else 12.sp
+    val buttonHeight = 44.dp
 
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("ELIMINAR CUENTA", fontWeight = FontWeight.Black) },
-            text = { Text("¿Seguro que quieres borrar '${account.name}'? Todos los datos se perderán.") },
+            title = { Text("Eliminar Cuenta", fontWeight = FontWeight.Bold) },
+            text = { Text("¿Seguro que quieres borrar '${account.name}'?") },
             confirmButton = {
                 TextButton(onClick = { onDeleteAccount(); showDeleteConfirm = false }, colors = ButtonDefaults.textButtonColors(contentColor = SpendRed)) {
-                    Text("ELIMINAR")
+                    Text("Eliminar")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text("CANCELAR") }
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancelar") }
             }
         )
     }
@@ -173,8 +179,8 @@ fun AccountCard(
             dependents = dependents,
             initialType = manualEntryInitialType,
             initialSource = manualEntryInitialSource,
-            onDismiss = { 
-                showManualEntryDialog = false 
+            onDismiss = {
+                showManualEntryDialog = false
                 manualEntryInitialType = null
                 manualEntryInitialSource = null
             },
@@ -187,11 +193,11 @@ fun AccountCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = StwCardSurface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color.Gray.copy(alpha = 0.2f))
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = StormCardSurface),
+        border = BorderStroke(1.dp, StormBorder)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(18.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -199,18 +205,30 @@ fun AccountCard(
             ) {
                 Column {
                     Text(
-                        text = account.name.uppercase(),
+                        text = account.name,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Black,
-                        color = Color.White,
+                        color = StormTextMain,
                         modifier = Modifier.clickable { showRenameDialog = true }
                     )
                     if (account.isMain) {
-                        Text("CUENTA PRINCIPAL", fontSize = 10.sp, color = FortAccent, fontWeight = FontWeight.Bold)
+                        Surface(
+                            color = StormCyan.copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.padding(top = 4.dp)
+                        ) {
+                            Text(
+                                "PRINCIPAL",
+                                fontSize = 9.sp,
+                                color = StormCyan,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
                     }
                 }
                 IconButton(onClick = { showDeleteConfirm = true }) {
-                    Icon(Icons.Default.Delete, contentDescription = null, tint = SpendRed.copy(alpha = 0.7f))
+                    Icon(Icons.Default.Delete, contentDescription = null, tint = SpendRed.copy(alpha = 0.6f))
                 }
             }
 
@@ -219,12 +237,12 @@ fun AccountCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = "${account.balance}",
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = VBucksGold,
+                    style = MaterialTheme.typography.headlineLarge.copy(fontFamily = FontFamily.Monospace),
+                    color = StormAmber,
                     fontWeight = FontWeight.Black
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("V-BUCKS", style = MaterialTheme.typography.titleMedium, color = VBucksGold)
+                Text("V-BUCKS", style = MaterialTheme.typography.titleMedium, color = StormAmber.copy(alpha = 0.8f))
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -233,24 +251,26 @@ fun AccountCard(
                 Button(
                     onClick = { onAddDaily(100) },
                     modifier = Modifier.weight(1f).height(buttonHeight),
-                    colors = ButtonDefaults.buttonColors(containerColor = DailyButtonColor),
-                    shape = MaterialTheme.shapes.small
+                    colors = ButtonDefaults.buttonColors(containerColor = EarnGreen),
+                    shape = RoundedCornerShape(10.dp)
                 ) {
-                    Text("+100 D", fontWeight = FontWeight.Black, fontSize = buttonFontSize, maxLines = 1)
+                    Text("+100 D", fontWeight = FontWeight.Bold, fontSize = buttonFontSize, color = StormBackground)
                 }
                 Button(
                     onClick = { onAddAlert() },
                     modifier = Modifier.weight(1f).height(buttonHeight),
-                    colors = ButtonDefaults.buttonColors(containerColor = AlertButtonColor),
-                    shape = MaterialTheme.shapes.small
+                    colors = ButtonDefaults.buttonColors(containerColor = StormCyan),
+                    shape = RoundedCornerShape(10.dp)
                 ) {
-                    Text("+50 A", fontWeight = FontWeight.Black, fontSize = buttonFontSize, maxLines = 1)
+                    Text("+50 A", fontWeight = FontWeight.Bold, fontSize = buttonFontSize, color = StormBackground)
                 }
                 IconButton(
                     onClick = { showManualEntryDialog = true },
-                    modifier = Modifier.size(buttonHeight).background(FortPurple, MaterialTheme.shapes.small)
+                    modifier = Modifier
+                        .size(buttonHeight)
+                        .background(StormCardElevated, RoundedCornerShape(10.dp))
                 ) {
-                    Icon(Icons.Default.Edit, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Edit, contentDescription = null, tint = StormTextMain, modifier = Modifier.size(18.dp))
                 }
             }
         }
@@ -260,17 +280,22 @@ fun AccountCard(
 @Composable
 fun RenameAccountDialog(initialName: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     var name by remember { mutableStateOf(initialName) }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("RENOMBRAR", fontWeight = FontWeight.Black) },
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Renombrar Cuenta", fontWeight = FontWeight.Bold) },
         text = { OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Nombre") }, modifier = Modifier.fillMaxWidth()) },
-        confirmButton = { Button(onClick = { onConfirm(name) }) { Text("OK") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("NO") } })
+        confirmButton = { Button(onClick = { onConfirm(name) }) { Text("Aceptar") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+    )
 }
 
 @Composable
 fun AddAccountDialog(onDismiss: () -> Unit, onConfirm: (String, Boolean) -> Unit) {
     var name by remember { mutableStateOf("") }
     var isMain by remember { mutableStateOf(false) }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("NUEVA CUENTA", fontWeight = FontWeight.Black) },
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Nueva Cuenta", fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Nombre") }, modifier = Modifier.fillMaxWidth())
@@ -280,6 +305,7 @@ fun AddAccountDialog(onDismiss: () -> Unit, onConfirm: (String, Boolean) -> Unit
                 }
             }
         },
-        confirmButton = { Button(onClick = { onConfirm(name, isMain) }) { Text("CREAR") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("CANCELAR") } })
+        confirmButton = { Button(onClick = { onConfirm(name, isMain) }) { Text("Crear") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+    )
 }

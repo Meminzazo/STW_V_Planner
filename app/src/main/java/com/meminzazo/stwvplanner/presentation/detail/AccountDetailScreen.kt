@@ -1,5 +1,6 @@
 package com.meminzazo.stwvplanner.presentation.detail
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -9,13 +10,16 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -23,8 +27,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -32,24 +36,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.meminzazo.stwvplanner.domain.model.Account
-import com.meminzazo.stwvplanner.domain.model.VBucksSource
-import com.meminzazo.stwvplanner.domain.model.TransactionType
 import com.meminzazo.stwvplanner.domain.model.Transaction
+import com.meminzazo.stwvplanner.domain.model.TransactionType
+import com.meminzazo.stwvplanner.domain.model.VBucksSource
 import com.meminzazo.stwvplanner.presentation.common.ManualEntryDialog
+import com.meminzazo.stwvplanner.presentation.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
-import com.meminzazo.stwvplanner.presentation.theme.*
 
-/**
- * Pantalla de detalle de una cuenta con estética Fortnite/STW.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AccountDetailScreen(
     viewModel: AccountDetailViewModel = hiltViewModel(),
     onPopBackStack: () -> Unit,
     onNavigateToHistory: (Long) -> Unit,
-    onNavigateToSummary: (Long) -> Unit, // Nueva navegación
+    onNavigateToSummary: (Long) -> Unit,
     snackbarHostState: SnackbarHostState
 ) {
     val account by viewModel.account.collectAsState()
@@ -70,7 +71,6 @@ fun AccountDetailScreen(
     val totalIncome by viewModel.totalIncome.collectAsState()
     val totalIncomeMensual by viewModel.totalIncomeMensual.collectAsState()
     val dependentAccounts by viewModel.dependentAccounts.collectAsState()
-    val focusManager = LocalFocusManager.current
 
     var showAddDependentDialog by remember { mutableStateOf(false) }
     var showManualEntryDialog by remember { mutableStateOf(false) }
@@ -113,8 +113,8 @@ fun AccountDetailScreen(
         acc?.let { a ->
             RenameAccountDialog(
                 initialName = a.name,
-                onDismiss = { 
-                    showRenameDialog = false 
+                onDismiss = {
+                    showRenameDialog = false
                     accountToRename = null
                 },
                 onConfirm = { newName ->
@@ -129,18 +129,18 @@ fun AccountDetailScreen(
     if (accountToDelete != null) {
         AlertDialog(
             onDismissRequest = { accountToDelete = null },
-            title = { Text("OCULTAR DEPENDIENTE", fontWeight = FontWeight.Black) },
-            text = { Text("¿Deseas ocultar a '${accountToDelete!!.name}'? No se borrarán sus registros de regalo ni se alterará el balance histórico.") },
+            title = { Text("Ocultar Dependiente", fontWeight = FontWeight.Bold) },
+            text = { Text("¿Deseas ocultar a '${accountToDelete!!.name}'? Se conservará su historial de regalos.") },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.onDeleteAccountClick(accountToDelete!!.id)
                     accountToDelete = null
                 }, colors = ButtonDefaults.textButtonColors(contentColor = SpendRed)) {
-                    Text("OCULTAR")
+                    Text("Ocultar", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { accountToDelete = null }) { Text("CANCELAR") }
+                TextButton(onClick = { accountToDelete = null }) { Text("Cancelar") }
             }
         )
     }
@@ -150,8 +150,8 @@ fun AccountDetailScreen(
             dependents = dependentAccounts,
             initialType = manualEntryInitialType,
             initialSource = manualEntryInitialSource,
-            onDismiss = { 
-                showManualEntryDialog = false 
+            onDismiss = {
+                showManualEntryDialog = false
                 manualEntryInitialType = null
                 manualEntryInitialSource = null
             },
@@ -175,19 +175,35 @@ fun AccountDetailScreen(
     }
 
     Scaffold(
+        containerColor = StormBackground,
         topBar = {
             TopAppBar(
-                title = { 
-                    Text(
-                        text = account?.name ?: "DETALLE",
-                        modifier = Modifier.clickable { showRenameDialog = true },
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Black
-                    ) 
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = StormBackground,
+                    titleContentColor = StormTextMain
+                ),
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable { showRenameDialog = true }
+                    ) {
+                        Text(
+                            text = account?.name ?: "DETALLE",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Black
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = "Editar nombre",
+                            tint = StormTextMuted,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 },
                 navigationIcon = {
                     IconButton(onClick = onPopBackStack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás", tint = StormTextMain)
                     }
                 }
             )
@@ -198,19 +214,25 @@ fun AccountDetailScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            item { Spacer(modifier = Modifier.height(8.dp)) }
+            item { Spacer(modifier = Modifier.height(2.dp)) }
 
-            // --- SALDO ---
+            // --- HERO SALDO ---
             item {
-                SectionTitle("ESTADO FINANCIERO")
-                BalanceCard(balance)
+                BalanceHeroCard(
+                    balance = balance,
+                    isDailyRegistered = isDailyRegistered,
+                    onAddDaily100 = { viewModel.onAddDailyClick(100) },
+                    onAddDaily150 = { viewModel.onAddDailyClick(150) },
+                    isMainAccount = account?.parentAccountId == null
+                )
             }
 
             // --- ACCIONES RÁPIDAS ---
             item {
-                SectionTitle("ACCIONES RÁPIDAS")
+                SectionHeader("ACCIONES RÁPIDAS")
+                Spacer(modifier = Modifier.height(10.dp))
                 QuickActionsGrid(
                     account = account,
                     isDailyRegistered = isDailyRegistered,
@@ -235,9 +257,15 @@ fun AccountDetailScreen(
             }
 
             // --- ESTADÍSTICAS ---
-            item {
-                SectionTitle("ESTADÍSTICAS")
-                if (earningsDesglosadas.isNotEmpty() || earningsDesglosadasMensual.isNotEmpty()) {
+            if (earningsDesglosadas.isNotEmpty() || earningsDesglosadasMensual.isNotEmpty() ||
+                expenseDistribution.isNotEmpty() || expenseDistributionMensual.isNotEmpty()) {
+                item {
+                    SectionHeader("ESTADÍSTICAS & DESGLOSE")
+                }
+            }
+
+            if (earningsDesglosadas.isNotEmpty() || earningsDesglosadasMensual.isNotEmpty()) {
+                item {
                     EarningsDistributionCard(
                         monthly = earningsDesglosadasMensual,
                         total = earningsDesglosadas,
@@ -251,8 +279,8 @@ fun AccountDetailScreen(
                 }
             }
 
-            item {
-                if (expenseDistribution.isNotEmpty() || expenseDistributionMensual.isNotEmpty()) {
+            if (expenseDistribution.isNotEmpty() || expenseDistributionMensual.isNotEmpty()) {
+                item {
                     ExpensesDistributionCard(
                         monthly = expenseDistributionMensual,
                         total = expenseDistribution,
@@ -266,19 +294,29 @@ fun AccountDetailScreen(
                 }
             }
 
-            // --- HISTORIAL ---
+            // --- ACCESO AL HISTORIAL ---
             item {
                 Button(
                     onClick = { onNavigateToHistory(account?.id ?: 0) },
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    shape = MaterialTheme.shapes.medium,
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = StormCardElevated),
+                    border = BorderStroke(1.dp, StormBorder)
                 ) {
-                    Text("VER HISTORIAL DETALLADO", fontWeight = FontWeight.Black)
+                    Icon(Icons.Default.History, contentDescription = null, tint = StormCyan)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "VER HISTORIAL COMPLETO",
+                        fontWeight = FontWeight.Bold,
+                        color = StormTextMain,
+                        style = MaterialTheme.typography.titleMedium
+                    )
                 }
             }
 
-            // --- DEPENDIENTES ---
+            // --- CUENTAS DEPENDIENTES ---
             if (account?.parentAccountId == null) {
                 item {
                     Row(
@@ -286,15 +324,15 @@ fun AccountDetailScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        SectionTitle("CUENTAS DEPENDIENTES")
+                        SectionHeader("DEPENDIENTES / VÍNCULOS")
                         IconButton(onClick = { showAddDependentDialog = true }) {
-                            Icon(Icons.Default.Add, contentDescription = "Añadir", tint = FortAccent)
+                            Icon(Icons.Default.Add, contentDescription = "Añadir", tint = StormCyan)
                         }
                     }
                 }
 
                 items(dependentRelations) { relation ->
-                    RelationItem(
+                    RelationItemCard(
                         relation = relation,
                         onClick = { onNavigateToSummary(relation.account.id) },
                         onEditName = { accountToRename = relation.account },
@@ -306,35 +344,153 @@ fun AccountDetailScreen(
                     item {
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            "GESTIONAR DEPENDIENTES OCULTOS", 
-                            style = MaterialTheme.typography.labelSmall, 
-                            color = Color.Gray,
-                            modifier = Modifier.padding(bottom = 4.dp)
+                            "DEPENDIENTES OCULTOS",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = StormTextMuted,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                     items(deletedDependents) { dep ->
-                        DeletedDependentItem(
+                        DeletedDependentItemCard(
                             account = dep,
                             onRestore = { viewModel.onRestoreAccountClick(dep.id) }
                         )
                     }
                 }
             }
-            
+
             item { Spacer(modifier = Modifier.height(24.dp)) }
         }
     }
 }
 
 @Composable
-fun SectionTitle(text: String) {
+fun SectionHeader(text: String) {
     Text(
         text = text,
-        style = MaterialTheme.typography.labelLarge,
-        color = FortAccent,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(bottom = 8.dp)
+        style = MaterialTheme.typography.labelMedium,
+        color = StormCyan,
+        fontWeight = FontWeight.ExtraBold,
+        letterSpacing = 1.2.sp,
+        modifier = Modifier.padding(bottom = 4.dp)
     )
+}
+
+@Composable
+fun BalanceHeroCard(
+    balance: Int,
+    isDailyRegistered: Boolean,
+    onAddDaily100: () -> Unit,
+    onAddDaily150: () -> Unit,
+    isMainAccount: Boolean
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = StormCardSurface),
+        border = BorderStroke(1.5.dp, StormBorder),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 20.dp, vertical = 28.dp)
+                .fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                "SALDO ACTUAL",
+                style = MaterialTheme.typography.labelMedium,
+                color = StormTextMuted,
+                fontWeight = FontWeight.ExtraBold
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "$balance",
+                    style = MaterialTheme.typography.headlineLarge.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 42.sp
+                    ),
+                    fontWeight = FontWeight.Black,
+                    color = StormAmber
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    "V-BUCKS",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = StormAmber.copy(alpha = 0.8f),
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            // --- DIRECT DAILY STATUS BANNER ---
+            if (isMainAccount) {
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider(color = StormBorder.copy(alpha = 0.6f))
+                Spacer(modifier = Modifier.height(14.dp))
+
+                if (isDailyRegistered) {
+                    Surface(
+                        color = EarnGreen.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, EarnGreen.copy(alpha = 0.4f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = EarnGreen, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "Misión Diaria de Hoy Completada",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = EarnGreen,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            "⚡ REGISTRAR MISIÓN DIARIA DE HOY",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = StormCyan,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Button(
+                                onClick = onAddDaily100,
+                                modifier = Modifier.weight(1f).height(44.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = EarnGreen)
+                            ) {
+                                Text("+100 V", fontWeight = FontWeight.Black, color = StormBackground, style = MaterialTheme.typography.titleMedium)
+                            }
+                            Button(
+                                onClick = onAddDaily150,
+                                modifier = Modifier.weight(1f).height(44.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = EarnGreen)
+                            ) {
+                                Text("+150 V", fontWeight = FontWeight.Black, color = StormBackground, style = MaterialTheme.typography.titleMedium)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -347,129 +503,59 @@ fun QuickActionsGrid(
     onExpenseClick: () -> Unit,
     onManualClick: () -> Unit
 ) {
-    val configuration = LocalConfiguration.current
-    val spacing = if (configuration.screenWidthDp < 360) 8.dp else 12.dp
-    val buttonHeight = if (configuration.screenWidthDp < 360) 44.dp else 50.dp
-    val fontSize = if (configuration.screenWidthDp < 360) 10.sp else 12.sp
+    val buttonHeight = 46.dp
 
-    Column(verticalArrangement = Arrangement.spacedBy(spacing)) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (account?.parentAccountId == null) {
-            Row(horizontalArrangement = Arrangement.spacedBy(spacing)) {
-                ActionButton(
-                    text = "DIARIA",
-                    color = DailyButtonColor,
-                    enabled = !isDailyRegistered,
-                    modifier = Modifier.weight(1f),
-                    isOutlined = true,
-                    height = buttonHeight,
-                    fontSize = fontSize,
-                    onClick = onDailyClick
-                )
-                ActionButton(
-                    text = "ALERTA +50",
-                    color = AlertButtonColor,
-                    modifier = Modifier.weight(1f),
-                    isOutlined = true,
-                    height = buttonHeight,
-                    fontSize = fontSize,
-                    onClick = onAlertClick
-                )
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedButton(
+                    onClick = onAlertClick,
+                    modifier = Modifier.weight(1f).height(buttonHeight),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, StormCyan),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = StormCyan)
+                ) {
+                    Text("ALERTA +50", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+                }
+                OutlinedButton(
+                    onClick = onExternalClick,
+                    modifier = Modifier.weight(1f).height(buttonHeight),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, YellowAccent),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = YellowAccent)
+                ) {
+                    Text("EXTERNO (+)", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+                }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(spacing)) {
-                ActionButton(
-                    text = "EXTERNO (+)",
-                    color = ExternalButtonColor,
-                    modifier = Modifier.weight(1f),
-                    isOutlined = true,
-                    height = buttonHeight,
-                    fontSize = fontSize,
-                    onClick = onExternalClick
-                )
-                ActionButton(
-                    text = "GASTO / REGALO",
-                    color = ExpenseButtonColor,
-                    modifier = Modifier.weight(1f),
-                    isOutlined = true,
-                    height = buttonHeight,
-                    fontSize = fontSize,
-                    onClick = onExpenseClick
-                )
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedButton(
+                    onClick = onExpenseClick,
+                    modifier = Modifier.weight(1f).height(buttonHeight),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, SpendRed),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = SpendRed)
+                ) {
+                    Text("GASTO / REGALO", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+                }
+                OutlinedButton(
+                    onClick = onManualClick,
+                    modifier = Modifier.weight(1f).height(buttonHeight),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, PurpleAccent),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = PurpleAccent)
+                ) {
+                    Text("MANUAL", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+                }
             }
-        }
-        ActionButton(
-            text = "REGISTRO MANUAL",
-            color = FortPurple,
-            modifier = Modifier.fillMaxWidth(),
-            isOutlined = true,
-            height = buttonHeight,
-            fontSize = fontSize,
-            onClick = onManualClick
-        )
-    }
-}
-
-@Composable
-fun ActionButton(
-    text: String,
-    color: Color,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    isOutlined: Boolean = false,
-    height: androidx.compose.ui.unit.Dp = 50.dp,
-    fontSize: androidx.compose.ui.unit.TextUnit = 12.sp,
-    onClick: () -> Unit
-) {
-    val displayColor = if (enabled) color else Color.Gray // Gris si está deshabilitado
-    
-    if (isOutlined) {
-        OutlinedButton(
-            onClick = onClick,
-            modifier = modifier.height(height),
-            enabled = enabled,
-            shape = MaterialTheme.shapes.small,
-            border = androidx.compose.foundation.BorderStroke(2.dp, displayColor),
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = displayColor,
-                disabledContentColor = Color.Gray
-            )
-        ) {
-            Text(text, fontWeight = FontWeight.Black, fontSize = fontSize, maxLines = 1)
-        }
-    } else {
-        Button(
-            onClick = onClick,
-            modifier = modifier.height(height),
-            enabled = enabled,
-            shape = MaterialTheme.shapes.small,
-            colors = ButtonDefaults.buttonColors(containerColor = color)
-        ) {
-            Text(text, fontWeight = FontWeight.Black, fontSize = fontSize, maxLines = 1)
-        }
-    }
-}
-
-@Composable
-fun BalanceCard(balance: Int) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = FortDarkBlue),
-        border = androidx.compose.foundation.BorderStroke(2.dp, VBucksGold.copy(alpha = 0.5f))
-    ) {
-        Column(
-            modifier = Modifier.padding(24.dp), 
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text("SALDO ACTUAL", style = MaterialTheme.typography.labelLarge, color = VBucksSilver)
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "$balance", 
-                    style = MaterialTheme.typography.headlineLarge, 
-                    fontWeight = FontWeight.Black,
-                    color = VBucksGold
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("V-BUCKS", style = MaterialTheme.typography.titleLarge, color = VBucksGold, fontWeight = FontWeight.Bold)
+        } else {
+            OutlinedButton(
+                onClick = onManualClick,
+                modifier = Modifier.fillMaxWidth().height(buttonHeight),
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, PurpleAccent),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = PurpleAccent)
+            ) {
+                Text("REGISTRO MANUAL", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
             }
         }
     }
@@ -484,30 +570,46 @@ fun DistributionPagerCard(
     totalContent: @Composable () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = StwCardSurface)
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = StormCardSurface),
+        border = BorderStroke(1.dp, StormBorder)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = title + if (pagerState.currentPage == 0) " · MENSUAL" else " · TOTAL",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = VBucksSilver
-            )
-            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title + if (pagerState.currentPage == 0) " · MES" else " · TOTAL",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = StormTextMuted
+                )
+                Text(
+                    text = "Toca para ver lista 🔍",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = StormCyan,
+                    fontSize = 10.sp
+                )
+            }
+            Spacer(modifier = Modifier.height(10.dp))
             HorizontalPager(state = pagerState, modifier = Modifier.fillMaxWidth()) { page ->
                 if (page == 0) monthlyContent() else totalContent()
             }
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                 repeat(pagerState.pageCount) { i ->
                     val selected = pagerState.currentPage == i
                     Box(
                         modifier = Modifier
-                            .padding(horizontal = 4.dp)
-                            .size(width = if (selected) 16.dp else 8.dp, height = 4.dp)
+                            .padding(horizontal = 3.dp)
+                            .size(width = if (selected) 14.dp else 6.dp, height = 4.dp)
                             .clip(CircleShape)
-                            .background(if (selected) FortAccent else Color.Gray)
+                            .background(if (selected) StormCyan else StormBorder)
                     )
                 }
             }
@@ -525,7 +627,7 @@ fun EarningsDistributionCard(
 ) {
     val pagerState = rememberPagerState(pageCount = { 2 })
     DistributionPagerCard(
-        title = "DISTRIBUCIÓN DE INGRESOS",
+        title = "INGRESOS",
         pagerState = pagerState,
         onClick = { onClick(pagerState.currentPage == 0) },
         monthlyContent = { EarningsPieContent(monthly, totalIncomeMensual) },
@@ -543,7 +645,7 @@ fun ExpensesDistributionCard(
 ) {
     val pagerState = rememberPagerState(pageCount = { 2 })
     DistributionPagerCard(
-        title = "DISTRIBUCIÓN DE EGRESOS",
+        title = "EGRESOS",
         pagerState = pagerState,
         onClick = { onClick(pagerState.currentPage == 0) },
         monthlyContent = { ExpensesPieContent(monthly, totalExpensesMensual) },
@@ -551,17 +653,17 @@ fun ExpensesDistributionCard(
     )
 }
 
-private val STATS_COLORS = listOf(EarnGreen, AlertBlue, FortPurple, FortBlue, FortAccent)
+private val STATS_COLORS = listOf(EarnGreen, StormCyan, PurpleAccent, YellowAccent, StormIndigo)
 
 @Composable
 private fun EarningsPieContent(data: Map<VBucksSource, Int>, totalIncome: Int = 0) {
     val incomeSum = data.values.sum().toFloat()
     if (data.isEmpty() || incomeSum == 0f) {
-        Text("SIN INGRESOS REGISTRADOS", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(vertical = 20.dp))
+        Text("SIN INGRESOS REGISTRADOS", fontSize = 11.sp, color = StormTextMuted, modifier = Modifier.padding(vertical = 16.dp))
         return
     }
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
-        Canvas(modifier = Modifier.size(80.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 6.dp)) {
+        Canvas(modifier = Modifier.size(72.dp)) {
             var startAngle = 0f
             data.entries.forEachIndexed { index, entry ->
                 val sweepAngle = (entry.value / incomeSum) * 360f
@@ -569,19 +671,18 @@ private fun EarningsPieContent(data: Map<VBucksSource, Int>, totalIncome: Int = 
                 startAngle += sweepAngle
             }
         }
-        Spacer(modifier = Modifier.width(24.dp))
+        Spacer(modifier = Modifier.width(20.dp))
         Column {
             data.entries.forEachIndexed { index, entry ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
-                    Box(modifier = Modifier.size(10.dp).background(STATS_COLORS.getOrElse(index) { Color.Gray }))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("${entry.key.name}: ${entry.value}", fontSize = 11.sp, color = VBucksSilver)
+                    Box(modifier = Modifier.size(8.dp).background(STATS_COLORS.getOrElse(index) { Color.Gray }, CircleShape))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("${entry.key.name}: ${entry.value}", fontSize = 11.sp, color = StormTextMain)
                 }
             }
-            // Mostrar total de ingresos si hay datos
             if (totalIncome > 0) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("Total Pavos Ingresados: $totalIncome", fontSize = 11.sp, color = EarnGreen, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("Total: +$totalIncome V", fontSize = 11.sp, color = EarnGreen, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -591,11 +692,11 @@ private fun EarningsPieContent(data: Map<VBucksSource, Int>, totalIncome: Int = 
 private fun ExpensesPieContent(data: Map<String, Int>, totalExpenses: Int = 0) {
     val expensesSum = data.values.sum().toFloat()
     if (data.isEmpty() || expensesSum == 0f) {
-        Text("SIN GASTOS REGISTRADOS", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(vertical = 20.dp))
+        Text("SIN GASTOS REGISTRADOS", fontSize = 11.sp, color = StormTextMuted, modifier = Modifier.padding(vertical = 16.dp))
         return
     }
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
-        Canvas(modifier = Modifier.size(80.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 6.dp)) {
+        Canvas(modifier = Modifier.size(72.dp)) {
             var startAngle = 0f
             data.entries.forEachIndexed { index, entry ->
                 val sweepAngle = (entry.value.toFloat() / expensesSum) * 360f
@@ -603,61 +704,64 @@ private fun ExpensesPieContent(data: Map<String, Int>, totalExpenses: Int = 0) {
                 startAngle += sweepAngle
             }
         }
-        Spacer(modifier = Modifier.width(24.dp))
+        Spacer(modifier = Modifier.width(20.dp))
         Column {
             data.entries.forEachIndexed { index, entry ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
-                    Box(modifier = Modifier.size(10.dp).background(STATS_COLORS.getOrElse(index + 2) { Color.Gray }))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("${entry.key}: ${entry.value}", fontSize = 11.sp, color = VBucksSilver)
+                    Box(modifier = Modifier.size(8.dp).background(STATS_COLORS.getOrElse(index + 2) { Color.Gray }, CircleShape))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("${entry.key}: ${entry.value}", fontSize = 11.sp, color = StormTextMain)
                 }
             }
-            // Mostrar total de gastos si hay datos
             if (totalExpenses > 0) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("Total Pavos Gastados: $totalExpenses", fontSize = 11.sp, color = SpendRed, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("Total: -$totalExpenses V", fontSize = 11.sp, color = SpendRed, fontWeight = FontWeight.Bold)
             }
         }
     }
 }
 
 @Composable
-fun RelationItem(relation: DependentRelation, onClick: () -> Unit, onEditName: () -> Unit, onDelete: () -> Unit) {
+fun RelationItemCard(relation: DependentRelation, onClick: () -> Unit, onEditName: () -> Unit, onDelete: () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = StwCardSurface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color.Gray.copy(alpha = 0.2f))
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = StormCardSurface),
+        border = BorderStroke(1.dp, StormBorder)
     ) {
         Row(
-            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            modifier = Modifier.padding(14.dp).fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                 Column {
-                    Text(relation.account.name.uppercase(), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Text(relation.account.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, color = StormTextMain)
                     Text(
-                        text = "V-BUCKS RECIBIDOS ESTE MES: ${relation.monthlyReceived}",
+                        text = "RECIBIDOS ESTE MES: ${relation.monthlyReceived} V",
                         fontSize = 11.sp,
-                        color = VBucksSilver,
-                        fontWeight = FontWeight.Bold
+                        color = StormTextMuted,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
                 Spacer(modifier = Modifier.width(8.dp))
-                IconButton(onClick = onEditName, modifier = Modifier.size(24.dp)) {
-                    Icon(Icons.Default.Edit, contentDescription = "Editar", tint = FortAccent, modifier = Modifier.size(16.dp))
+                IconButton(onClick = onEditName, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.Edit, contentDescription = "Editar", tint = StormCyan, modifier = Modifier.size(16.dp))
                 }
-                IconButton(onClick = onDelete, modifier = Modifier.size(24.dp)) {
-                    Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = SpendRed, modifier = Modifier.size(16.dp))
+                IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = SpendRed.copy(alpha = 0.8f), modifier = Modifier.size(16.dp))
                 }
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text("BALANCE TOTAL", fontSize = 10.sp, color = VBucksSilver)
+                Text("BALANCE", fontSize = 9.sp, color = StormTextMuted)
                 Text(
                     text = "${if (relation.totalBalance > 0) "+" else ""}${relation.totalBalance}",
                     color = if (relation.totalBalance >= 0) EarnGreen else SpendRed,
                     fontWeight = FontWeight.Black,
-                    fontSize = 16.sp
+                    fontSize = 15.sp,
+                    fontFamily = FontFamily.Monospace
                 )
             }
         }
@@ -665,26 +769,27 @@ fun RelationItem(relation: DependentRelation, onClick: () -> Unit, onEditName: (
 }
 
 @Composable
-fun DeletedDependentItem(
+fun DeletedDependentItemCard(
     account: Account,
     onRestore: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color.Gray.copy(alpha = 0.05f)),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color.Gray.copy(alpha = 0.1f))
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(containerColor = StormCardSurface.copy(alpha = 0.5f)),
+        border = BorderStroke(1.dp, StormBorder.copy(alpha = 0.5f))
     ) {
         Row(
-            modifier = Modifier.padding(8.dp).fillMaxWidth(),
+            modifier = Modifier.padding(10.dp).fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text(account.name.uppercase(), style = MaterialTheme.typography.bodySmall, color = Color.Gray, fontWeight = FontWeight.Bold)
-                Text("OCULTA", fontSize = 8.sp, color = Color.Gray)
+                Text(account.name, style = MaterialTheme.typography.bodySmall, color = StormTextMuted, fontWeight = FontWeight.Bold)
+                Text("OCULTA", fontSize = 9.sp, color = StormTextMuted)
             }
-            IconButton(onClick = onRestore, modifier = Modifier.size(24.dp)) {
-                Icon(Icons.Default.Restore, contentDescription = "Restaurar", tint = FortAccent.copy(alpha = 0.7f), modifier = Modifier.size(16.dp))
+            IconButton(onClick = onRestore, modifier = Modifier.size(28.dp)) {
+                Icon(Icons.Default.Restore, contentDescription = "Restaurar", tint = StormCyan, modifier = Modifier.size(16.dp))
             }
         }
     }
@@ -694,60 +799,66 @@ fun DeletedDependentItem(
 fun DailyAmountDialog(onDismiss: () -> Unit, onConfirm: (Int) -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("MISIÓN DIARIA", fontWeight = FontWeight.Black) },
+        title = { Text("Misión Diaria", fontWeight = FontWeight.Bold) },
         text = { Text("Selecciona la recompensa de hoy:") },
         confirmButton = {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { onConfirm(100) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = EarnGreen)) {
-                    Text("100", fontWeight = FontWeight.Black)
+                    Text("100 V", fontWeight = FontWeight.Bold, color = StormBackground)
                 }
                 Button(onClick = { onConfirm(150) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = EarnGreen)) {
-                    Text("150", fontWeight = FontWeight.Black)
+                    Text("150 V", fontWeight = FontWeight.Bold, color = StormBackground)
                 }
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("CANCELAR") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
     )
 }
 
 @Composable
 fun DistributionHistoryDialog(title: String, transactions: List<Transaction>, onDismiss: () -> Unit) {
     val sdf = remember { SimpleDateFormat("dd/MM/yy", Locale.getDefault()) }
+    val isIncome = title.contains("Ingresos", ignoreCase = true)
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        modifier = Modifier.fillMaxWidth(0.95f), // Más ancho como se solicitó
-        title = { Text(title.uppercase(), fontWeight = FontWeight.Black, fontSize = 18.sp) },
+        modifier = Modifier.fillMaxWidth(0.95f),
+        title = { Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp) },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                    Text("FECHA", Modifier.weight(1.2f), fontWeight = FontWeight.Bold, fontSize = 10.sp, color = VBucksSilver)
-                    Text("CUENTA", Modifier.weight(1.8f), fontWeight = FontWeight.Bold, fontSize = 10.sp, color = VBucksSilver)
-                    Text("DETALLE", Modifier.weight(2.5f), fontWeight = FontWeight.Bold, fontSize = 10.sp, color = VBucksSilver)
-                    Text("MONTO", Modifier.weight(1.2f), fontWeight = FontWeight.Bold, fontSize = 10.sp, color = VBucksSilver, textAlign = TextAlign.End)
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                    Text("FECHA", Modifier.weight(if (isIncome) 1.5f else 1.2f), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = StormTextMuted)
+                    if (!isIncome) {
+                        Text("CUENTA", Modifier.weight(1.8f), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = StormTextMuted)
+                    }
+                    Text("DETALLE", Modifier.weight(if (isIncome) 4.3f else 2.5f), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = StormTextMuted)
+                    Text("MONTO", Modifier.weight(1.2f), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = StormTextMuted, textAlign = TextAlign.End)
                 }
-                HorizontalDivider(color = Color.Gray.copy(alpha = 0.3f))
-                LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 450.dp)) {
+                HorizontalDivider(color = StormBorder)
+                LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
                     items(transactions.sortedByDescending { it.date }) { tx ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 10.dp), // Más espacio entre filas
+                                .padding(vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(sdf.format(Date(tx.date)), Modifier.weight(1.2f), fontSize = 11.sp)
-                            val account = tx.recipientAccountName ?: "-"
-                            Text(account.uppercase(), Modifier.weight(1.8f), fontSize = 11.sp, maxLines = 1)
+                            Text(sdf.format(Date(tx.date)), Modifier.weight(if (isIncome) 1.5f else 1.2f), fontSize = 11.sp, color = StormTextMuted)
+                            if (!isIncome) {
+                                val account = tx.recipientAccountName ?: "-"
+                                Text(account, Modifier.weight(1.8f), fontSize = 11.sp, maxLines = 1, color = StormTextMain)
+                            }
                             val detail = tx.itemName ?: tx.description
-                            Text(detail.uppercase(), Modifier.weight(2.5f), fontSize = 11.sp, maxLines = 2) // Max 2 líneas para detalles largos
+                            Text(detail, Modifier.weight(if (isIncome) 4.3f else 2.5f), fontSize = 11.sp, maxLines = 2, color = StormTextMain)
                             val color = if (tx.type == TransactionType.EARN) EarnGreen else SpendRed
-                            Text("${if (tx.type == TransactionType.EARN) "+" else "-"}${tx.amount}", Modifier.weight(1.2f), fontSize = 13.sp, textAlign = TextAlign.End, color = color, fontWeight = FontWeight.Black)
+                            Text("${if (tx.type == TransactionType.EARN) "+" else "-"}${tx.amount}", Modifier.weight(1.2f), fontSize = 12.sp, textAlign = TextAlign.End, color = color, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
                         }
-                        HorizontalDivider(thickness = 0.5.dp, color = Color.Gray.copy(alpha = 0.2f))
+                        HorizontalDivider(thickness = 0.5.dp, color = StormBorder.copy(alpha = 0.5f))
                     }
                 }
             }
         },
-        confirmButton = { Button(onClick = onDismiss) { Text("CERRAR") } }
+        confirmButton = { Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = StormCyan)) { Text("Cerrar", color = StormBackground, fontWeight = FontWeight.Bold) } }
     )
 }
 
@@ -755,44 +866,50 @@ fun DistributionHistoryDialog(title: String, transactions: List<Transaction>, on
 fun AddDependentDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     var name by remember { mutableStateOf("") }
     val focusManager = LocalFocusManager.current
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("NUEVO DEPENDIENTE", fontWeight = FontWeight.Black) },
-        text = { 
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Nuevo Dependiente", fontWeight = FontWeight.Bold) },
+        text = {
             OutlinedTextField(
-                value = name, 
-                onValueChange = { name = it }, 
-                label = { Text("Nombre") }, 
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Nombre") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = {
                     focusManager.clearFocus()
-                    onConfirm(name)
+                    if (name.isNotBlank()) onConfirm(name.trim())
                 }),
                 modifier = Modifier.fillMaxWidth()
-            ) 
+            )
         },
-        confirmButton = { Button(onClick = { onConfirm(name) }) { Text("CREAR") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("CANCELAR") } })
+        confirmButton = { Button(onClick = { if (name.isNotBlank()) onConfirm(name.trim()) }, colors = ButtonDefaults.buttonColors(containerColor = StormCyan)) { Text("Crear", color = StormBackground, fontWeight = FontWeight.Bold) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+    )
 }
 
 @Composable
 fun RenameAccountDialog(initialName: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     var name by remember { mutableStateOf(initialName) }
     val focusManager = LocalFocusManager.current
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("RENOMBRAR", fontWeight = FontWeight.Black) },
-        text = { 
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Renombrar Cuenta", fontWeight = FontWeight.Bold) },
+        text = {
             OutlinedTextField(
-                value = name, 
-                onValueChange = { name = it }, 
-                label = { Text("Nombre") }, 
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Nombre") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = {
                     focusManager.clearFocus()
-                    onConfirm(name)
+                    if (name.isNotBlank()) onConfirm(name.trim())
                 }),
                 modifier = Modifier.fillMaxWidth()
-            ) 
+            )
         },
-        confirmButton = { Button(onClick = { onConfirm(name) }) { Text("OK") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("NO") } })
+        confirmButton = { Button(onClick = { if (name.isNotBlank()) onConfirm(name.trim()) }, colors = ButtonDefaults.buttonColors(containerColor = StormCyan)) { Text("Aceptar", color = StormBackground, fontWeight = FontWeight.Bold) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+    )
 }

@@ -5,9 +5,9 @@ import kotlinx.coroutines.flow.Flow
 
 interface AuthRepository {
     val currentUser: Flow<User?>
+    val isUserLocal: Flow<Boolean>
     suspend fun signInWithGoogle(idToken: String): Result<User>
     suspend fun signInLocally(): Result<User>
-    suspend fun isUserLocal(): Boolean
     suspend fun signOut()
     
     fun isGuestBannerMinimized(): Flow<Boolean>

@@ -1,5 +1,6 @@
 package com.meminzazo.stwvplanner.presentation.auth
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -10,10 +11,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.meminzazo.stwvplanner.presentation.theme.VBucksGold
-import com.meminzazo.stwvplanner.presentation.theme.FortAccent
+import com.meminzazo.stwvplanner.presentation.theme.*
 
 @Composable
 fun LoginScreen(
@@ -33,60 +32,102 @@ fun LoginScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = StormBackground
     ) {
-        Text(
-            text = "STW V PLANNER",
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.Black,
-            color = VBucksGold
-        )
-        
-        Text(
-            text = "v3.0 - Blindaje Total",
-            style = MaterialTheme.typography.labelMedium,
-            color = FortAccent,
-            modifier = Modifier.padding(top = 4.dp)
-        )
-        
-        Spacer(modifier = Modifier.height(48.dp))
-
-        if (isLoading) {
-            CircularProgressIndicator(color = FortAccent)
-        } else {
-            Button(
-                onClick = { viewModel.onSignInWithGoogle(context) },
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                shape = MaterialTheme.shapes.medium
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Tactical HUD Badge / Header
+            Surface(
+                color = StormCyan.copy(alpha = 0.1f),
+                shape = MaterialTheme.shapes.small,
+                border = BorderStroke(1.dp, StormCyan.copy(alpha = 0.3f))
             ) {
-                Text("CONTINUAR CON GOOGLE", fontWeight = FontWeight.Black)
+                Text(
+                    text = "STW V-BUCKS COMMAND",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = StormCyan,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                )
             }
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
-            OutlinedButton(
-                onClick = viewModel::onContinueAsGuest,
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                shape = MaterialTheme.shapes.medium,
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color.Gray)
-            ) {
-                Text("ENTRAR COMO INVITADO (LOCAL)", color = Color.Gray, fontWeight = FontWeight.Bold)
-            }
 
-            Spacer(modifier = Modifier.height(32.dp))
-            
             Text(
-                text = "El modo invitado guarda los datos solo en este dispositivo. Usa Google para activar el respaldo en la nube.",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray.copy(alpha = 0.7f),
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 16.dp)
+                text = "V-PLANNER",
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Black,
+                color = StormAmber
             )
+
+            Text(
+                text = "SYSTEM v3.1 · SECURE HUD",
+                style = MaterialTheme.typography.labelSmall,
+                color = StormTextMuted,
+                modifier = Modifier.padding(top = 6.dp)
+            )
+
+            Spacer(modifier = Modifier.height(56.dp))
+
+            if (isLoading) {
+                CircularProgressIndicator(color = StormCyan)
+            } else {
+                Button(
+                    onClick = { viewModel.onSignInWithGoogle(context) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = ButtonDefaults.buttonColors(containerColor = StormCyan)
+                ) {
+                    Text(
+                        "INICIAR CON GOOGLE",
+                        fontWeight = FontWeight.Black,
+                        color = StormBackground,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedButton(
+                    onClick = viewModel::onContinueAsGuest,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    border = BorderStroke(1.dp, StormBorder),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = StormTextMuted)
+                ) {
+                    Text(
+                        "MODO INVITADO (LOCAL)",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(36.dp))
+
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = StormCardSurface),
+                    border = BorderStroke(1.dp, StormBorder),
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Text(
+                        text = "El modo invitado almacena registros localmente en el dispositivo. Conecta Google para sincronización segura en la nube.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = StormTextMuted,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+            }
         }
     }
 }

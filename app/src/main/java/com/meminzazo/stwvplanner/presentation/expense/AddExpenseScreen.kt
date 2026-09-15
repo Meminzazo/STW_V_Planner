@@ -1,6 +1,8 @@
 package com.meminzazo.stwvplanner.presentation.expense
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -14,8 +16,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-
 import com.meminzazo.stwvplanner.domain.model.ItemType
+import com.meminzazo.stwvplanner.presentation.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,7 +51,7 @@ fun AddExpenseScreen(
         var otherName by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showOtherRecipientDialog = false },
-            title = { Text("Nuevo Destinatario") },
+            title = { Text("Nuevo Destinatario", fontWeight = FontWeight.Bold) },
             text = {
                 OutlinedTextField(
                     value = otherName,
@@ -59,13 +61,16 @@ fun AddExpenseScreen(
                 )
             },
             confirmButton = {
-                Button(onClick = {
-                    if (otherName.isNotBlank()) {
-                        viewModel.onRecipientSelected(otherName, null)
-                        showOtherRecipientDialog = false
-                    }
-                }) {
-                    Text("Aceptar")
+                Button(
+                    onClick = {
+                        if (otherName.isNotBlank()) {
+                            viewModel.onRecipientSelected(otherName.trim(), null)
+                            showOtherRecipientDialog = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = StormCyan)
+                ) {
+                    Text("Aceptar", color = StormBackground, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -77,12 +82,17 @@ fun AddExpenseScreen(
     }
 
     Scaffold(
+        containerColor = StormBackground,
         topBar = {
             TopAppBar(
-                title = { Text("Registrar Gasto / Regalo") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = StormBackground,
+                    titleContentColor = StormTextMain
+                ),
+                title = { Text("REGISTRAR GASTO / REGALO", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onPopBackStack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás", tint = StormTextMain)
                     }
                 }
             )
@@ -95,129 +105,152 @@ fun AddExpenseScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            ExposedDropdownMenuBox(
-                expanded = expandedRecipient,
-                onExpandedChange = { expandedRecipient = !expandedRecipient }
+            Card(
+                colors = CardDefaults.cardColors(containerColor = StormCardSurface),
+                border = BorderStroke(1.dp, StormBorder),
+                shape = RoundedCornerShape(16.dp)
             ) {
-                OutlinedTextField(
-                    value = recipientName,
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Cuenta que recibe (Amigo/Secundaria)") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true),
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedRecipient) }
-                )
-
-                ExposedDropdownMenu(
-                    expanded = expandedRecipient,
-                    onDismissRequest = { expandedRecipient = false }
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    otherAccounts.forEach { account ->
-                        DropdownMenuItem(
-                            text = { Text(account.name) },
-                            onClick = {
-                                viewModel.onRecipientSelected(account.name, account.id)
-                                expandedRecipient = false
-                            }
+                    ExposedDropdownMenuBox(
+                        expanded = expandedRecipient,
+                        onExpandedChange = { expandedRecipient = !expandedRecipient }
+                    ) {
+                        OutlinedTextField(
+                            value = recipientName,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Cuenta que recibe (Amigo/Secundaria)") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true),
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedRecipient) },
+                            shape = RoundedCornerShape(12.dp)
                         )
-                    }
-                    externalRecipients.forEach { name ->
-                        DropdownMenuItem(
-                            text = { Text(name) },
-                            onClick = {
-                                viewModel.onRecipientSelected(name, null)
-                                expandedRecipient = false
+
+                        ExposedDropdownMenu(
+                            expanded = expandedRecipient,
+                            onDismissRequest = { expandedRecipient = false },
+                            containerColor = StormCardElevated,
+                            border = BorderStroke(1.dp, StormBorder)
+                        ) {
+                            otherAccounts.forEach { account ->
+                                DropdownMenuItem(
+                                    text = { Text(account.name, color = StormTextMain) },
+                                    onClick = {
+                                        viewModel.onRecipientSelected(account.name, account.id)
+                                        expandedRecipient = false
+                                    }
+                                )
                             }
-                        )
-                    }
-                    HorizontalDivider()
-                    DropdownMenuItem(
-                        text = { Text("Otros...", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold) },
-                        onClick = {
-                            showOtherRecipientDialog = true
-                            expandedRecipient = false
+                            externalRecipients.forEach { name ->
+                                DropdownMenuItem(
+                                    text = { Text(name, color = StormTextMain) },
+                                    onClick = {
+                                        viewModel.onRecipientSelected(name, null)
+                                        expandedRecipient = false
+                                    }
+                                )
+                            }
+                            HorizontalDivider(color = StormBorder)
+                            DropdownMenuItem(
+                                text = { Text("Otro...", color = StormCyan, fontWeight = FontWeight.Bold) },
+                                onClick = {
+                                    showOtherRecipientDialog = true
+                                    expandedRecipient = false
+                                }
+                            )
                         }
+                    }
+
+                    ExposedDropdownMenuBox(
+                        expanded = expandedItemType,
+                        onExpandedChange = { expandedItemType = !expandedItemType }
+                    ) {
+                        OutlinedTextField(
+                            value = when (itemType) {
+                                ItemType.SKIN -> "Skin"
+                                ItemType.DANCE -> "Baile"
+                                ItemType.SONG -> "Canción"
+                                ItemType.PACK -> "Paquete"
+                                ItemType.OTHER -> "Otro"
+                            },
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Tipo de Objeto") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true),
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedItemType) },
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        ExposedDropdownMenu(
+                            expanded = expandedItemType,
+                            onDismissRequest = { expandedItemType = false },
+                            containerColor = StormCardElevated,
+                            border = BorderStroke(1.dp, StormBorder)
+                        ) {
+                            ItemType.entries.forEach { type ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(when (type) {
+                                            ItemType.SKIN -> "Skin"
+                                            ItemType.DANCE -> "Baile"
+                                            ItemType.SONG -> "Canción"
+                                            ItemType.PACK -> "Paquete"
+                                            ItemType.OTHER -> "Otro"
+                                        }, color = StormTextMain)
+                                    },
+                                    onClick = {
+                                        viewModel.onItemTypeChange(type)
+                                        expandedItemType = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = description,
+                        onValueChange = viewModel::onDescriptionChange,
+                        label = { Text("Nombre del objeto") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    OutlinedTextField(
+                        value = amount,
+                        onValueChange = viewModel::onAmountChange,
+                        label = { Text("Precio en V-Bucks") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Number,
+                            imeAction = ImeAction.Done
+                        ),
+                        keyboardActions = KeyboardActions(onDone = {
+                            focusManager.clearFocus()
+                            viewModel.onSaveClick()
+                        }),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
                     )
                 }
             }
 
-            ExposedDropdownMenuBox(
-                expanded = expandedItemType,
-                onExpandedChange = { expandedItemType = !expandedItemType }
-            ) {
-                OutlinedTextField(
-                    value = when (itemType) {
-                        ItemType.SKIN -> "Skin"
-                        ItemType.DANCE -> "Baile"
-                        ItemType.SONG -> "Canción"
-                        ItemType.PACK -> "Paquete"
-                        ItemType.OTHER -> "Otro"
-                    },
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Tipo de Objeto") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true),
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedItemType) }
-                )
-
-                ExposedDropdownMenu(
-                    expanded = expandedItemType,
-                    onDismissRequest = { expandedItemType = false }
-                ) {
-                    ItemType.entries.forEach { type ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(when (type) {
-                                    ItemType.SKIN -> "Skin"
-                                    ItemType.DANCE -> "Baile"
-                                    ItemType.SONG -> "Canción"
-                                    ItemType.PACK -> "Paquete"
-                                    ItemType.OTHER -> "Otro"
-                                })
-                            },
-                            onClick = {
-                                viewModel.onItemTypeChange(type)
-                                expandedItemType = false
-                            }
-                        )
-                    }
-                }
-            }
-
-            OutlinedTextField(
-                value = description,
-                onValueChange = viewModel::onDescriptionChange,
-                label = { Text("Objeto (Skin, Baile, etc.)") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            OutlinedTextField(
-                value = amount,
-                onValueChange = viewModel::onAmountChange,
-                label = { Text("Precio en V-Bucks") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Number,
-                    imeAction = ImeAction.Done
-                ),
-                keyboardActions = KeyboardActions(onDone = {
-                    focusManager.clearFocus()
-                    viewModel.onSaveClick()
-                }),
-                modifier = Modifier.fillMaxWidth()
-            )
+            Spacer(modifier = Modifier.height(8.dp))
 
             Button(
                 onClick = viewModel::onSaveClick,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = SpendRed)
             ) {
-                Text("Guardar")
+                Text("GUARDAR GASTO", fontWeight = FontWeight.Black, color = StormTextMain)
             }
         }
     }

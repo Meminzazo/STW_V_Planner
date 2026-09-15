@@ -1,11 +1,14 @@
 package com.meminzazo.stwvplanner.data.repository
 
+import android.util.Log
 import androidx.room.withTransaction
+import com.google.firebase.auth.FirebaseAuth
 import com.meminzazo.stwvplanner.data.local.VBucksDatabase
 import com.meminzazo.stwvplanner.data.local.dao.AccountDao
 import com.meminzazo.stwvplanner.data.local.dao.TransactionDao
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
+import com.google.gson.Gson
 import com.meminzazo.stwvplanner.data.local.entity.AccountEntity
 import com.meminzazo.stwvplanner.data.local.entity.TransactionEntity
 import com.meminzazo.stwvplanner.domain.model.TransactionType
@@ -95,23 +98,36 @@ class SyncRepositoryImpl @Inject constructor(
     }
 
     override suspend fun restoreFromTransferCode(code: String): Result<Unit> {
+        Log.d("SyncRepository", "Iniciando restoreFromTransferCode para el código: $code")
+        Log.d("SyncRepository", "Estado Auth: firebaseUser=${FirebaseAuth.getInstance().currentUser?.uid}")
         return try {
             val snapshot = firestore.collection("transfer_codes").document(code).get().await()
-            if (!snapshot.exists()) return Result.failure(Exception("Código no encontrado"))
+            if (!snapshot.exists()) {
+                Log.e("SyncRepository", "Código no encontrado en Firestore: $code")
+                return Result.failure(Exception("Código no encontrado"))
+            }
             val createdAt = snapshot.getLong("createdAt") ?: 0L
+            Log.d("SyncRepository", "Código encontrado. Creado en: $createdAt")
 
             // Caducidad de 1 hora para protección
             if (System.currentTimeMillis() - createdAt > 3600000L) {
+                Log.w("SyncRepository", "El código $code ha expirado")
                 firestore.collection("transfer_codes").document(code).delete()
                 return Result.failure(Exception("Código expirado (1h)"))
             }
-            val json = snapshot.getString("data") ?: return Result.failure(Exception("Datos vacíos"))
+            val json = snapshot.getString("data") ?: run {
+                Log.e("SyncRepository", "El código $code existe pero no tiene datos")
+                return Result.failure(Exception("Datos vacíos"))
+            }
+            Log.d("SyncRepository", "JSON recibido de Firestore (longitud: ${json.length})")
 
             // Opcional: borrar el código tras su uso para evitar spam
             firestore.collection("transfer_codes").document(code).delete().await()
+            Log.d("SyncRepository", "Código $code eliminado tras recuperación exitosa")
 
             restoreFromJson(json)
         } catch (e: Exception) {
+            Log.e("SyncRepository", "Error en restoreFromTransferCode: ${e.message}", e)
             Result.failure(e)
         }
     }
@@ -135,18 +151,27 @@ class SyncRepositoryImpl @Inject constructor(
     }
 
     private suspend fun restoreFromJson(json: String): Result<Unit> {
+        Log.d("SyncRepository", "Iniciando restoreFromJson")
         return try {
-            val backup = com.google.gson.Gson().fromJson(json, FullBackup::class.java)
+            val backup = Gson().fromJson(json, FullBackup::class.java)
+            Log.d("SyncRepository", "Deserealización exitosa: ${backup.accounts.size} cuentas, ${backup.transactions.size} transacciones")
+            
             // withTransaction: si algo falla a medio proceso (archivo corrupto, entidad inválida),
             // se revierte todo -> nunca se queda la BD vacía o a medias.
             db.withTransaction {
+                Log.d("SyncRepository", "Iniciando transacción de base de datos")
                 accountDao.clearAllAccounts()
                 transactionDao.clearAllTransactions()
                 backup.accounts.forEach { accountDao.insertAccount(it) }
                 backup.transactions.forEach { transactionDao.insertTransaction(it) }
+                Log.d("SyncRepository", "Transacción de base de datos completada")
             }
+            Log.d("SyncRepository", "Restauración finalizada con éxito")
             Result.success(Unit)
-        } catch (e: Exception) { Result.failure(e) }
+        } catch (e: Exception) {
+            Log.e("SyncRepository", "Error en restoreFromJson: ${e.message}", e)
+            Result.failure(e)
+        }
     }
 
     private data class FullBackup(val accounts: List<AccountEntity>, val transactions: List<TransactionEntity>)
