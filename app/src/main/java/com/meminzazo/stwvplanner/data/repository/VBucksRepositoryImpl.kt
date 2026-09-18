@@ -1,11 +1,14 @@
 package com.meminzazo.stwvplanner.data.repository
 
 import com.meminzazo.stwvplanner.data.local.dao.AccountDao
+import com.meminzazo.stwvplanner.data.local.dao.SharedLinkDao
 import com.meminzazo.stwvplanner.data.local.dao.TransactionDao
 import com.meminzazo.stwvplanner.data.local.entity.AccountEntity
+import com.meminzazo.stwvplanner.data.local.entity.SharedLinkEntity
 import com.meminzazo.stwvplanner.data.mapper.toDomain
 import com.meminzazo.stwvplanner.data.mapper.toEntity
 import com.meminzazo.stwvplanner.domain.model.Account
+import com.meminzazo.stwvplanner.domain.model.SharedLink
 import com.meminzazo.stwvplanner.domain.model.Transaction
 import com.meminzazo.stwvplanner.domain.repository.VBucksRepository
 import kotlinx.coroutines.flow.Flow
@@ -19,7 +22,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 
 class VBucksRepositoryImpl @Inject constructor(
     private val accountDao: AccountDao,
-    private val transactionDao: TransactionDao
+    private val transactionDao: TransactionDao,
+    private val sharedLinkDao: SharedLinkDao
 ) : VBucksRepository {
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -202,5 +206,19 @@ class VBucksRepositoryImpl @Inject constructor(
 
     override fun getExternalRecipients(accountId: Long): Flow<List<String>> {
         return transactionDao.getExternalRecipients(accountId)
+    }
+
+    override fun getSharedLinks(): Flow<List<SharedLink>> {
+        return sharedLinkDao.getAllSharedLinks().map { entities ->
+            entities.map { SharedLink(it.code, it.accountName, it.ownerName, it.lastViewed) }
+        }
+    }
+
+    override suspend fun saveSharedLink(link: SharedLink) {
+        sharedLinkDao.insertSharedLink(SharedLinkEntity(link.code, link.accountName, link.ownerName, link.lastViewed))
+    }
+
+    override suspend fun deleteSharedLink(code: String) {
+        sharedLinkDao.deleteSharedLink(code)
     }
 }

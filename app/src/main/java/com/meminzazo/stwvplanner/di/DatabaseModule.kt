@@ -6,6 +6,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.meminzazo.stwvplanner.data.local.VBucksDatabase
 import com.meminzazo.stwvplanner.data.local.dao.AccountDao
+import com.meminzazo.stwvplanner.data.local.dao.SharedLinkDao
 import com.meminzazo.stwvplanner.data.local.dao.TransactionDao
 import dagger.Module
 import dagger.Provides
@@ -24,6 +25,12 @@ object DatabaseModule {
         }
     }
 
+    private val MIGRATION_4_5 = object : Migration(4, 5) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS `shared_links` (`code` TEXT NOT NULL, `accountName` TEXT NOT NULL, `ownerName` TEXT, `lastViewed` INTEGER NOT NULL, PRIMARY KEY(`code`))")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): VBucksDatabase {
@@ -32,7 +39,7 @@ object DatabaseModule {
             VBucksDatabase::class.java,
             "vbucks_db"
         )
-        .addMigrations(MIGRATION_3_4)
+        .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
         .fallbackToDestructiveMigration()
         .build()
     }
@@ -42,4 +49,7 @@ object DatabaseModule {
 
     @Provides
     fun provideTransactionDao(db: VBucksDatabase): TransactionDao = db.transactionDao()
+
+    @Provides
+    fun provideSharedLinkDao(db: VBucksDatabase): SharedLinkDao = db.sharedLinkDao()
 }

@@ -10,18 +10,47 @@ service cloud.firestore {
     
     // 2. Reglas para los códigos de transferencia (Compartir con amigos)
     match /transfer_codes/{code} {
-      // Solo se puede crear si estás logueado, quedas registrado como creador,
-      // y el payload no rebasa el límite (forzado en servidor, no solo en Kotlin)
       allow create: if request.auth != null
                     && request.resource.data.createdBy == request.auth.uid
                     && request.resource.data.data is string
                     && request.resource.data.data.size() < 2000000;
-
-      // Leer y borrar siguen abiertos a cualquier logueado (así funciona compartir código),
-      // pero ahora el código es imposible de adivinar por fuerza bruta (10 chars alfanuméricos)
       allow read, delete: if request.auth != null;
+    }
 
-      // No existe "update": ningún flujo de la app modifica un código ya creado
+    // 3. Reglas para vistas compartidas de solo lectura (Snapshot efímero)
+    match /shared_views/{code} {
+      allow create: if request.auth != null
+                    && request.resource.data.ownerId == request.auth.uid
+                    && request.resource.data.keys().hasAll(['accountName','totalBalance','createdAt'])
+                    && request.resource.data.createdAt is int;
+      // Lectura pública permitida para que el receptor pueda verla (incluso invitados)
+      allow read: if true;
+      // Permitir borrar o actualizar si eres el dueño O si el documento no tiene dueño (migración)
+      allow delete, update: if request.auth != null
+                            && (resource == null
+                                || !('ownerId' in resource.data)
+                                || resource.data.ownerId == request.auth.uid);
+    }
+
+    // 4. Reglas para solicitudes de acceso a infraestructura
+    match /infrastructure_requests/{requestId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.status == "pending"
+                    && request.resource.data.userChosenName is string
+                    && request.resource.data.userChosenName.size() >= 3
+                    && request.resource.data.userChosenName.size() <= 30
+                    && request.resource.data.debugToken is string
+                    && request.resource.data.debugToken.size() > 0;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // 5. Configuración de la aplicación (EmailJS, etc)
+    match /config/{document} {
+      allow read: if request.auth != null;
+      allow write: if false;
     }
   }
 }

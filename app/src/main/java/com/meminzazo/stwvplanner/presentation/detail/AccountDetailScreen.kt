@@ -21,13 +21,17 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -81,13 +85,43 @@ fun AccountDetailScreen(
     var manualEntryInitialType by remember { mutableStateOf<TransactionType?>(null) }
     var manualEntryInitialSource by remember { mutableStateOf<VBucksSource?>(null) }
     var distributionToShow by remember { mutableStateOf<Pair<String, List<Transaction>>?>(null) }
+    var showShareReadOnlyDialog by remember { mutableStateOf(false) }
+    var shareCode by remember { mutableStateOf<String?>(null) }
+    var isGeneratingCode by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
 
     LaunchedEffect(Unit) {
         viewModel.uiEvent.collect { event ->
             when (event) {
                 is AccountDetailViewModel.UiEvent.ShowError -> snackbarHostState.showSnackbar(event.message)
+                is AccountDetailViewModel.UiEvent.ShareCodeGenerated -> {
+                    shareCode = event.code
+                    isGeneratingCode = false
+                }
             }
         }
+    }
+
+    if (showShareReadOnlyDialog) {
+        ShareReadOnlyDialog(
+            shareCode = shareCode,
+            isGenerating = isGeneratingCode,
+            onDismiss = {
+                showShareReadOnlyDialog = false
+                shareCode = null
+                isGeneratingCode = false
+            },
+            onGenerate = {
+                isGeneratingCode = true
+                viewModel.generateShareCode()
+            },
+            onCopy = {
+                clipboardManager.setText(AnnotatedString(shareCode ?: ""))
+                // Snackbar se mostrará al usuario
+            }
+        )
     }
 
     if (distributionToShow != null) {
@@ -199,6 +233,11 @@ fun AccountDetailScreen(
                             tint = StormTextMuted,
                             modifier = Modifier.size(16.dp)
                         )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showShareReadOnlyDialog = true }) {
+                        Icon(Icons.Default.Share, contentDescription = "Compartir", tint = StormCyan)
                     }
                 },
                 navigationIcon = {
@@ -630,8 +669,28 @@ fun EarningsDistributionCard(
         title = "INGRESOS",
         pagerState = pagerState,
         onClick = { onClick(pagerState.currentPage == 0) },
-        monthlyContent = { EarningsPieContent(monthly, totalIncomeMensual) },
-        totalContent = { EarningsPieContent(total, totalIncome) }
+        monthlyContent = { EarningsPieContent(monthly.mapKeys { it.key.name }, totalIncomeMensual) },
+        totalContent = { EarningsPieContent(total.mapKeys { it.key.name }, totalIncome) }
+    )
+}
+
+@Composable
+fun GenericDistributionCard(
+    title: String,
+    monthly: Map<String, Int>,
+    total: Map<String, Int>,
+    totalSum: Int = 0,
+    totalSumMensual: Int = 0,
+    isIncome: Boolean = true,
+    onClick: (Boolean) -> Unit
+) {
+    val pagerState = rememberPagerState(pageCount = { 2 })
+    DistributionPagerCard(
+        title = title,
+        pagerState = pagerState,
+        onClick = { onClick(pagerState.currentPage == 0) },
+        monthlyContent = { if (isIncome) EarningsPieContent(monthly, totalSumMensual) else ExpensesPieContent(monthly, totalSumMensual) },
+        totalContent = { if (isIncome) EarningsPieContent(total, totalSum) else ExpensesPieContent(total, totalSum) }
     )
 }
 
@@ -656,7 +715,7 @@ fun ExpensesDistributionCard(
 private val STATS_COLORS = listOf(EarnGreen, StormCyan, PurpleAccent, YellowAccent, StormIndigo)
 
 @Composable
-private fun EarningsPieContent(data: Map<VBucksSource, Int>, totalIncome: Int = 0) {
+fun EarningsPieContent(data: Map<String, Int>, totalIncome: Int = 0) {
     val incomeSum = data.values.sum().toFloat()
     if (data.isEmpty() || incomeSum == 0f) {
         Text("SIN INGRESOS REGISTRADOS", fontSize = 11.sp, color = StormTextMuted, modifier = Modifier.padding(vertical = 16.dp))
@@ -677,7 +736,7 @@ private fun EarningsPieContent(data: Map<VBucksSource, Int>, totalIncome: Int = 
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
                     Box(modifier = Modifier.size(8.dp).background(STATS_COLORS.getOrElse(index) { Color.Gray }, CircleShape))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("${entry.key.name}: ${entry.value}", fontSize = 11.sp, color = StormTextMain)
+                    Text("${entry.key}: ${entry.value}", fontSize = 11.sp, color = StormTextMain)
                 }
             }
             if (totalIncome > 0) {
@@ -689,7 +748,7 @@ private fun EarningsPieContent(data: Map<VBucksSource, Int>, totalIncome: Int = 
 }
 
 @Composable
-private fun ExpensesPieContent(data: Map<String, Int>, totalExpenses: Int = 0) {
+fun ExpensesPieContent(data: Map<String, Int>, totalExpenses: Int = 0) {
     val expensesSum = data.values.sum().toFloat()
     if (data.isEmpty() || expensesSum == 0f) {
         Text("SIN GASTOS REGISTRADOS", fontSize = 11.sp, color = StormTextMuted, modifier = Modifier.padding(vertical = 16.dp))
@@ -885,6 +944,73 @@ fun AddDependentDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
         },
         confirmButton = { Button(onClick = { if (name.isNotBlank()) onConfirm(name.trim()) }, colors = ButtonDefaults.buttonColors(containerColor = StormCyan)) { Text("Crear", color = StormBackground, fontWeight = FontWeight.Bold) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+    )
+}
+
+@Composable
+fun ShareReadOnlyDialog(
+    shareCode: String?,
+    isGenerating: Boolean,
+    onDismiss: () -> Unit,
+    onGenerate: () -> Unit,
+    onCopy: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = if (isGenerating) ({}) else onDismiss,
+        title = { Text(if (shareCode == null) "Compartir en modo lectura" else "¡Código generado!", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                if (isGenerating) {
+                    CircularProgressIndicator(color = StormCyan)
+                    Spacer(Modifier.height(16.dp))
+                    Text("Generando código...", color = StormTextMuted)
+                } else if (shareCode == null) {
+                    Text(
+                        "Al generar un código, se subirá un snapshot de esta cuenta a la nube. Cualquiera con el código podrá ver el balance y transacciones, pero NO podrá modificar nada.\n\nEl código caduca en 7 días.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                } else {
+                    Text("Comparte este código con la otra persona:", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.height(16.dp))
+                    Surface(
+                        color = StormCardElevated,
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, StormBorder)
+                    ) {
+                        Text(
+                            text = shareCode,
+                            style = MaterialTheme.typography.headlineLarge.copy(fontFamily = FontFamily.Monospace),
+                            fontWeight = FontWeight.Black,
+                            color = StormCyan,
+                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text("Válido 7 días · Solo visualización", style = MaterialTheme.typography.labelSmall, color = StormTextMuted)
+                }
+            }
+        },
+        confirmButton = {
+            if (!isGenerating) {
+                if (shareCode == null) {
+                    Button(onClick = onGenerate, colors = ButtonDefaults.buttonColors(containerColor = StormCyan)) {
+                        Text("GENERAR CÓDIGO", color = StormBackground, fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    Button(onClick = {
+                        onCopy()
+                        onDismiss()
+                    }, colors = ButtonDefaults.buttonColors(containerColor = StormCyan)) {
+                        Text("COPIAR Y CERRAR", color = StormBackground, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        },
+        dismissButton = {
+            if (!isGenerating) {
+                TextButton(onClick = onDismiss) { Text("Cancelar") }
+            }
+        }
     )
 }
 

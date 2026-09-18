@@ -14,10 +14,13 @@ android {
         applicationId = "com.meminzazo.stwvplanner"
         minSdk = 28
         targetSdk = 36
-        versionCode = 4
-        versionName = "3.1.4"
+        versionCode = 5
+        versionName = "4.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        
+        buildConfigField("String", "GITHUB_REPO_OWNER", "\"Meminzazo\"")
+        buildConfigField("String", "GITHUB_REPO_NAME", "\"STW_V_Planner\"")
     }
 
     buildTypes {

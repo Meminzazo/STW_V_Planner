@@ -1,11 +1,14 @@
 package com.meminzazo.stwvplanner.presentation.detail
 
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.meminzazo.stwvplanner.domain.model.*
+import com.meminzazo.stwvplanner.domain.repository.SharedViewRepository
 import com.meminzazo.stwvplanner.domain.repository.VBucksRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -21,7 +24,9 @@ data class DependentRelation(
 @HiltViewModel
 class AccountDetailViewModel @Inject constructor(
     private val repository: VBucksRepository,
+    private val sharedViewRepository: SharedViewRepository,
     private val addAccountUseCase: com.meminzazo.stwvplanner.domain.usecase.AddAccountUseCase,
+    @ApplicationContext private val context: Context,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -268,6 +273,38 @@ class AccountDetailViewModel @Inject constructor(
         }
     }
 
+    fun generateShareCode() {
+        viewModelScope.launch {
+            // Cooldown de 1 minuto
+            val lastTime = getPrefs().getLong("last_gen_time", 0L)
+            if (System.currentTimeMillis() - lastTime < 60000L) {
+                _uiEvent.emit(UiEvent.ShowError("Espera 1 minuto antes de generar un nuevo código"))
+                return@launch
+            }
+
+            // Borrar el código anterior si existe
+            val oldCode = getPrefs().getString("last_share_code", null)
+            if (oldCode != null) {
+                sharedViewRepository.deleteSharedView(oldCode)
+            }
+
+            val result = sharedViewRepository.createSharedView(accountId)
+            if (result.isSuccess) {
+                val newCode = result.getOrNull()!!
+                getPrefs().edit()
+                    .putString("last_share_code", newCode)
+                    .putLong("last_shared_account_id", accountId)
+                    .putLong("last_gen_time", System.currentTimeMillis())
+                    .apply()
+                _uiEvent.emit(UiEvent.ShareCodeGenerated(newCode))
+            } else {
+                _uiEvent.emit(UiEvent.ShowError("Error al generar código: ${result.exceptionOrNull()?.message}"))
+            }
+        }
+    }
+
+    private fun getPrefs() = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+
     fun onManualEntryClick(
         amount: Int,
         type: TransactionType,
@@ -304,5 +341,6 @@ class AccountDetailViewModel @Inject constructor(
 
     sealed class UiEvent {
         data class ShowError(val message: String) : UiEvent()
+        data class ShareCodeGenerated(val code: String) : UiEvent()
     }
 }

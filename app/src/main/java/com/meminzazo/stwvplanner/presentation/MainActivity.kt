@@ -31,6 +31,8 @@ import com.meminzazo.stwvplanner.presentation.auth.LoginScreen
 import com.meminzazo.stwvplanner.presentation.detail.AccountDetailScreen
 import com.meminzazo.stwvplanner.presentation.expense.AddExpenseScreen
 import com.meminzazo.stwvplanner.presentation.history.HistoryScreen
+import com.meminzazo.stwvplanner.presentation.infrastructure.InfrastructureRequestScreen
+import com.meminzazo.stwvplanner.presentation.readonly.ReadOnlyScreen
 import com.meminzazo.stwvplanner.presentation.summary.DependentSummaryScreen
 import com.meminzazo.stwvplanner.presentation.navigation.Screen
 import com.meminzazo.stwvplanner.presentation.theme.STWVPlannerTheme
@@ -87,6 +89,7 @@ class MainActivity : ComponentActivity() {
                                     onAccountSelected = { accountId ->
                                         navController.navigate(Screen.AccountDetail.createRoute(accountId))
                                     },
+                                    navController = navController,
                                     snackbarHostState = snackbarHostState
                                 )
                             }
@@ -135,6 +138,23 @@ class MainActivity : ComponentActivity() {
                                 )
                             ) {
                                 DependentSummaryScreen(
+                                    onPopBackStack = { navController.popBackStack() }
+                                )
+                            }
+                            composable(
+                                route = Screen.ReadOnlyView.route,
+                                arguments = listOf(
+                                    navArgument("code") { type = NavType.StringType }
+                                )
+                            ) { backStackEntry ->
+                                val code = backStackEntry.arguments?.getString("code") ?: ""
+                                ReadOnlyScreen(
+                                    code = code,
+                                    onPopBackStack = { navController.popBackStack() }
+                                )
+                            }
+                            composable(Screen.InfrastructureRequest.route) {
+                                InfrastructureRequestScreen(
                                     onPopBackStack = { navController.popBackStack() }
                                 )
                             }

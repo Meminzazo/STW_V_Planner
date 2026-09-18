@@ -1,6 +1,7 @@
 package com.meminzazo.stwvplanner.domain.repository
 
 import com.meminzazo.stwvplanner.domain.model.Account
+import com.meminzazo.stwvplanner.domain.model.SharedLink
 import com.meminzazo.stwvplanner.domain.model.Transaction
 import kotlinx.coroutines.flow.Flow
 
@@ -31,4 +32,9 @@ interface VBucksRepository {
     fun getTransactionsInRange(accountId: Long, start: Long, end: Long): Flow<List<Transaction>>
     fun getBalanceInRange(accountId: Long, start: Long, end: Long): Flow<Int>
     fun getExternalRecipients(accountId: Long): Flow<List<String>>
+
+    // Shared Links
+    fun getSharedLinks(): Flow<List<SharedLink>>
+    suspend fun saveSharedLink(link: SharedLink)
+    suspend fun deleteSharedLink(code: String)
 }

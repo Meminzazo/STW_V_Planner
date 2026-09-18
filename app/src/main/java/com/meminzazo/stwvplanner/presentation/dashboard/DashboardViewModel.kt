@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
+import android.os.Environment
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.core.content.FileProvider
@@ -17,14 +18,19 @@ import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.meminzazo.stwvplanner.BuildConfig
 import com.meminzazo.stwvplanner.domain.model.Account
+import com.meminzazo.stwvplanner.domain.model.SharedLink
 import com.meminzazo.stwvplanner.domain.model.Transaction
 import com.meminzazo.stwvplanner.domain.model.TransactionType
 import com.meminzazo.stwvplanner.domain.model.VBucksSource
+import com.meminzazo.stwvplanner.domain.model.UpdateCheckResult
 import com.meminzazo.stwvplanner.domain.repository.AuthRepository
+import com.meminzazo.stwvplanner.domain.repository.SharedViewRepository
 import com.meminzazo.stwvplanner.domain.repository.SyncRepository
+import com.meminzazo.stwvplanner.domain.repository.UpdateRepository
 import com.meminzazo.stwvplanner.domain.repository.VBucksRepository
 import com.meminzazo.stwvplanner.domain.usecase.AddAccountUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -41,7 +47,10 @@ class DashboardViewModel @Inject constructor(
     private val repository: VBucksRepository,
     private val syncRepository: SyncRepository,
     private val authRepository: AuthRepository,
-    private val addAccountUseCase: AddAccountUseCase
+    private val sharedViewRepository: SharedViewRepository,
+    private val addAccountUseCase: AddAccountUseCase,
+    private val updateRepository: UpdateRepository,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     val accounts: StateFlow<List<Account>> = repository.getMainAccounts()
@@ -51,6 +60,9 @@ class DashboardViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allAccounts: StateFlow<List<Account>> = repository.getAccounts()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val sharedLinks: StateFlow<List<SharedLink>> = repository.getSharedLinks()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _isLoading = MutableStateFlow(false)
@@ -83,18 +95,27 @@ class DashboardViewModel @Inject constructor(
     }
 
     /**
-     * Limpia respaldos temporales de más de 24h que pudieran haber quedado
-     * en cache/exports tras un "Compartir directamente" (ver onPerformShare).
+     * Limpia respaldos temporales y APKs de actualizaciones antiguas.
      */
-    fun cleanupOldExports(context: Context) {
+    fun cleanupOldFiles(context: Context) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
+                // 1. Limpiar exportaciones de JSON (>24h)
                 val exportsDir = File(context.cacheDir, "exports")
                 val cutoff = System.currentTimeMillis() - (24 * 60 * 60 * 1000L)
                 exportsDir.listFiles()?.forEach { file ->
                     if (file.lastModified() < cutoff) file.delete()
                 }
-            } catch (_: Exception) { /* limpieza best-effort, no bloquea la app */ }
+
+                // 2. Limpiar APKs descargadas en la carpeta de la app
+                val downloadsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+                downloadsDir?.listFiles()?.forEach { file ->
+                    if (file.name.endsWith(".apk")) {
+                        file.delete()
+                        Log.d("DashboardVM", "Archivo APK antiguo eliminado: ${file.name}")
+                    }
+                }
+            } catch (_: Exception) { /* limpieza best-effort */ }
         }
     }
 
@@ -151,9 +172,60 @@ class DashboardViewModel @Inject constructor(
             val user = authRepository.currentUser.first()
             if (user != null) {
                 val result = syncRepository.backupFullDatabase(user.id)
-                _uiEvent.emit(UiEvent.ShowError(if (result.isSuccess) "Respaldo total guardado" else result.exceptionOrNull()?.message ?: "Error al respaldar"))
+                if (result.isSuccess) {
+                    _uiEvent.emit(UiEvent.ShowError("Respaldo total guardado"))
+                    
+                    // Actualizar vista compartida automáticamente para la cuenta específica compartida
+                    val mainAccounts = accounts.value.ifEmpty { 
+                        repository.getMainAccounts().firstOrNull() ?: emptyList() 
+                    }
+                    
+                    val sharedAccountId = getSavedSharedAccountId()
+                    val accountToUpdate = mainAccounts.find { it.id == sharedAccountId }
+                        ?: mainAccounts.find { it.isMain }
+                        ?: mainAccounts.firstOrNull()
+
+                    if (accountToUpdate != null) {
+                        val storedCode = getSavedShareCode()
+                        if (storedCode != null) {
+                            Log.d("DashboardVM", "Sincronizando vista compartida de '${accountToUpdate.name}': $storedCode")
+                            sharedViewRepository.createSharedView(accountToUpdate.id, storedCode).onSuccess {
+                                Log.d("DashboardVM", "Vista compartida actualizada con éxito")
+                            }.onFailure { e ->
+                                Log.e("DashboardVM", "Error al sincronizar vista compartida: ${e.message}")
+                            }
+                        } else {
+                            Log.d("DashboardVM", "No hay código de vista compartida activo para sincronizar")
+                        }
+                    } else {
+                        Log.w("DashboardVM", "No se encontró cuenta para sincronizar vista compartida")
+                    }
+                } else {
+                    _uiEvent.emit(UiEvent.ShowError(result.exceptionOrNull()?.message ?: "Error al respaldar"))
+                }
             }
             _isLoading.value = false
+        }
+    }
+
+    private fun getSavedShareCode(): String? {
+        val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+        return prefs.getString("last_share_code", null)
+    }
+
+    private fun getSavedSharedAccountId(): Long {
+        val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+        return prefs.getLong("last_shared_account_id", -1L)
+    }
+
+    private fun saveShareCode(code: String?) {
+        val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putString("last_share_code", code).apply()
+    }
+
+    fun deleteSharedLink(code: String) {
+        viewModelScope.launch {
+            repository.deleteSharedLink(code)
         }
     }
 
@@ -472,6 +544,22 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch { repository.restoreAccount(accountId) }
     }
 
+    fun checkForUpdates() {
+        viewModelScope.launch {
+            val result = updateRepository.checkForUpdate()
+            if (result is UpdateCheckResult.UpdateAvailable) {
+                _uiEvent.emit(UiEvent.UpdateAvailable(result))
+            }
+        }
+    }
+
+    fun downloadAndInstall(context: Context, update: UpdateCheckResult.UpdateAvailable) {
+        viewModelScope.launch {
+            _uiEvent.emit(UiEvent.DownloadingUpdate(update.remoteVersionName))
+            updateRepository.downloadAndInstall(context, update.downloadUrl, update.remoteVersionName)
+        }
+    }
+
     fun onVersionClick() {
         val now = System.currentTimeMillis()
         if (now - lastVersionClickTime > 2000) {
@@ -501,5 +589,7 @@ class DashboardViewModel @Inject constructor(
         data class ShowDebugDialog(val token: String) : UiEvent()
         data class LaunchCreateDocument(val fileName: String) : UiEvent()
         data class ConfirmFileImport(val uri: Uri) : UiEvent()
+        data class UpdateAvailable(val update: UpdateCheckResult.UpdateAvailable) : UiEvent()
+        data class DownloadingUpdate(val versionName: String) : UiEvent()
     }
 }

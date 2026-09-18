@@ -18,4 +18,10 @@ sealed class Screen(val route: String) {
     object DependentSummary : Screen("dependent_summary/{accountId}") {
         fun createRoute(accountId: Long) = "dependent_summary/$accountId"
     }
+
+    object ReadOnlyView : Screen("readonly_view/{code}") {
+        fun createRoute(code: String) = "readonly_view/$code"
+    }
+
+    object InfrastructureRequest : Screen("infrastructure_request")
 }

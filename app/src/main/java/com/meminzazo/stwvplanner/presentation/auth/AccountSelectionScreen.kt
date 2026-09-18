@@ -1,5 +1,6 @@
 package com.meminzazo.stwvplanner.presentation.auth
 
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -23,6 +24,11 @@ import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.VpnKey
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -40,21 +46,144 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.meminzazo.stwvplanner.BuildConfig
 import com.meminzazo.stwvplanner.domain.model.Account
+import com.meminzazo.stwvplanner.domain.model.UpdateCheckResult
+import com.meminzazo.stwvplanner.presentation.navigation.Screen
 import com.meminzazo.stwvplanner.presentation.dashboard.DashboardViewModel
 import com.meminzazo.stwvplanner.presentation.theme.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.navigation.NavController
+import com.meminzazo.stwvplanner.domain.model.SharedLink
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun UpdateDialog(
+    update: UpdateCheckResult.UpdateAvailable,
+    onDismiss: () -> Unit,
+    onUpdate: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = StormCardSurface,
+            border = BorderStroke(1.dp, StormBorder)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(24.dp)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Surface(
+                    color = StormCyan.copy(alpha = 0.15f),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, StormCyan.copy(alpha = 0.5f))
+                ) {
+                    Text(
+                        "ACTUALIZACIÓN DISPONIBLE",
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = StormCyan,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Text(
+                    "Nueva versión ${update.remoteVersionName}",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = StormAmber,
+                    fontWeight = FontWeight.Black,
+                    textAlign = TextAlign.Center
+                )
+                
+                Text(
+                    "Tienes la v${BuildConfig.VERSION_NAME} instalada",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = StormTextMuted
+                )
+                
+                Spacer(modifier = Modifier.height(20.dp))
+                
+                Text(
+                    "NOVEDADES",
+                    modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = StormCyan,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Surface(
+                    modifier = Modifier
+                        .heightIn(max = 200.dp)
+                        .fillMaxWidth(),
+                    color = StormCardElevated,
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, StormBorder)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .padding(12.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        Text(
+                            text = update.changelog,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                            color = StormTextMain
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    TextButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Ahora no", color = StormTextMuted)
+                    }
+                    
+                    Button(
+                        onClick = onUpdate,
+                        modifier = Modifier.weight(1.5f),
+                        colors = ButtonDefaults.buttonColors(containerColor = StormCyan),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("ACTUALIZAR AHORA", color = StormBackground, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AccountSelectionScreen(
     viewModel: DashboardViewModel = hiltViewModel(),
     onAccountSelected: (Long) -> Unit,
+    navController: NavController,
     snackbarHostState: SnackbarHostState
 ) {
     val context = LocalContext.current
 
     val accounts by viewModel.accounts.collectAsState()
     val deletedAccounts by viewModel.deletedAccounts.collectAsState()
+    val sharedLinks by viewModel.sharedLinks.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val isLocalMode by viewModel.isLocalMode.collectAsState()
     val isGuestBannerMinimized by viewModel.isGuestBannerMinimized.collectAsState()
@@ -67,7 +196,9 @@ fun AccountSelectionScreen(
     var showTransferCodeDialog by remember { mutableStateOf<String?>(null) }
     var showImportCodeDialog by remember { mutableStateOf(false) }
     var showDebugDialog by remember { mutableStateOf<String?>(null) }
-    var pendingImportUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
+    var updateToShow by remember { mutableStateOf<UpdateCheckResult.UpdateAvailable?>(null) }
+    var showReadOnlyCodeDialog by remember { mutableStateOf(false) }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -82,7 +213,8 @@ fun AccountSelectionScreen(
     }
 
     LaunchedEffect(Unit) {
-        viewModel.cleanupOldExports(context)
+        viewModel.cleanupOldFiles(context)
+        viewModel.checkForUpdates()
         viewModel.uiEvent.collect { event ->
             when (event) {
                 is DashboardViewModel.UiEvent.ShowError -> {
@@ -106,8 +238,35 @@ fun AccountSelectionScreen(
                 is DashboardViewModel.UiEvent.ConfirmFileImport -> {
                     pendingImportUri = event.uri
                 }
+                is DashboardViewModel.UiEvent.UpdateAvailable -> {
+                    updateToShow = event.update
+                }
+                is DashboardViewModel.UiEvent.DownloadingUpdate -> {
+                    snackbarHostState.showSnackbar("Descargando actualización: ${event.versionName}")
+                }
             }
         }
+    }
+
+    if (updateToShow != null) {
+        UpdateDialog(
+            update = updateToShow!!,
+            onDismiss = { updateToShow = null },
+            onUpdate = {
+                viewModel.downloadAndInstall(context, updateToShow!!)
+                updateToShow = null
+            }
+        )
+    }
+
+    if (showReadOnlyCodeDialog) {
+        ReadOnlyCodeDialog(
+            onDismiss = { showReadOnlyCodeDialog = false },
+            onConfirm = { code ->
+                showReadOnlyCodeDialog = false
+                navController.navigate(Screen.ReadOnlyView.createRoute(code))
+            }
+        )
     }
 
     if (pendingImportUri != null) {
@@ -384,6 +543,22 @@ fun AccountSelectionScreen(
                                     leadingIcon = { Icon(Icons.Default.FileDownload, contentDescription = null, tint = StormCyan) }
                                 )
 
+                                Text(
+                                    "ACCESO A LA NUBE",
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = StormCyan,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Solicitar / Ver acceso", color = StormTextMain) },
+                                    onClick = {
+                                        showCloudMenu = false
+                                        navController.navigate(Screen.InfrastructureRequest.route)
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.VpnKey, contentDescription = null, tint = StormCyan) }
+                                )
+
                                 HorizontalDivider(color = StormBorder)
 
                                 DropdownMenuItem(
@@ -407,40 +582,40 @@ fun AccountSelectionScreen(
 
                                 if (showCloudOptions) {
                                     DropdownMenuItem(
-                                        text = { Text("Subir a la nube", color = StormTextMain) },
+                                        text = { Text("Subir a la nube", color = if (isLocalMode) StormTextMuted else StormTextMain) },
                                         onClick = {
                                             viewModel.onBackupClick()
                                             showCloudMenu = false
                                         },
-                                        leadingIcon = { Icon(Icons.Default.CloudUpload, contentDescription = null, tint = StormAmber) },
+                                        leadingIcon = { Icon(Icons.Default.CloudUpload, contentDescription = null, tint = if (isLocalMode) StormTextMuted else StormAmber) },
                                         enabled = !isLocalMode
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("Bajar de la nube", color = StormTextMain) },
+                                        text = { Text("Bajar de la nube", color = if (isLocalMode) StormTextMuted else StormTextMain) },
                                         onClick = {
                                             showRestoreConfirm = true
                                             showCloudMenu = false
                                         },
-                                        leadingIcon = { Icon(Icons.Default.CloudDownload, contentDescription = null, tint = StormAmber) },
+                                        leadingIcon = { Icon(Icons.Default.CloudDownload, contentDescription = null, tint = if (isLocalMode) StormTextMuted else StormAmber) },
                                         enabled = !isLocalMode
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("Generar código (10 dígitos)", color = StormTextMain) },
+                                        text = { Text("Generar código (10 dígitos)", color = if (isLocalMode) StormTextMuted else StormTextMain) },
                                         onClick = {
                                             viewModel.onGenerateTransferCode()
                                             showCloudMenu = false
                                         },
-                                        leadingIcon = { Icon(Icons.Default.Key, contentDescription = null, tint = StormAmber) },
+                                        leadingIcon = { Icon(Icons.Default.Key, contentDescription = null, tint = if (isLocalMode) StormTextMuted else StormAmber) },
                                         enabled = !isLocalMode
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("Importar con código", color = StormTextMain) },
+                                        text = { Text("Importar con código", color = if (isLocalMode) StormTextMuted else StormTextMain) },
                                         onClick = {
                                             viewModel.onStartImportCode()
                                             showCloudMenu = false
                                         },
-                                        leadingIcon = { Icon(Icons.Default.Key, contentDescription = null, tint = StormAmber) },
-                                        enabled = true
+                                        leadingIcon = { Icon(Icons.Default.Key, contentDescription = null, tint = if (isLocalMode) StormTextMuted else StormAmber) },
+                                        enabled = !isLocalMode
                                     )
                                 }
                             }
@@ -572,6 +747,49 @@ fun AccountSelectionScreen(
                 )
             }
 
+            if (sharedLinks.isNotEmpty()) {
+                item {
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        "CUENTAS VINCULADAS",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = StormCyan,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                items(sharedLinks) { link ->
+                    SharedLinkCardItem(
+                        link = link,
+                        onClick = { navController.navigate(Screen.ReadOnlyView.createRoute(link.code)) },
+                        onDelete = { viewModel.deleteSharedLink(link.code) }
+                    )
+                }
+            }
+
+            item {
+                Spacer(Modifier.height(16.dp))
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showReadOnlyCodeDialog = true },
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = StormCardElevated.copy(alpha = 0.5f)),
+                    border = BorderStroke(1.dp, StormBorder)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Visibility, contentDescription = null, tint = StormCyan)
+                        Spacer(Modifier.width(16.dp))
+                        Column {
+                            Text("VER CUENTA COMPARTIDA", style = MaterialTheme.typography.labelSmall, color = StormCyan, fontWeight = FontWeight.Bold)
+                            Text("Introduce un código de 6 dígitos", style = MaterialTheme.typography.bodySmall, color = StormTextMuted)
+                        }
+                    }
+                }
+            }
+
             if (deletedAccounts.isNotEmpty()) {
                 item {
                     Spacer(Modifier.height(16.dp))
@@ -605,6 +823,108 @@ fun AccountSelectionScreen(
                     style = MaterialTheme.typography.labelSmall,
                     color = StormTextMuted.copy(alpha = 0.5f)
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun ReadOnlyCodeDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var code by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Ver Cuenta Compartida", fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                Text("Introduce el código de 10 caracteres para ver el snapshot de otra cuenta:", style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = code,
+                    onValueChange = { 
+                        val filtered = it.uppercase().filter { c -> c.isLetterOrDigit() }
+                        if (filtered.length <= 10) code = filtered 
+                    },
+                    label = { Text("Código de 10 caracteres") },
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Ascii,
+                        imeAction = ImeAction.Done
+                    ),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(code) },
+                enabled = code.length == 10,
+                colors = ButtonDefaults.buttonColors(containerColor = StormCyan)
+            ) { Text("VER", color = StormBackground, fontWeight = FontWeight.Bold) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+    )
+}
+
+@Composable
+fun SharedLinkCardItem(
+    link: SharedLink,
+    onClick: () -> Unit,
+    onDelete: () -> Unit
+) {
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Eliminar Vínculo", fontWeight = FontWeight.Bold) },
+            text = { Text("¿Deseas eliminar el acceso directo a '${link.accountName}'?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDelete()
+                    showDeleteConfirm = false
+                }, colors = ButtonDefaults.textButtonColors(contentColor = SpendRed)) {
+                    Text("Eliminar", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancelar") } }
+        )
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = StormCardElevated.copy(alpha = 0.6f)),
+        border = BorderStroke(1.dp, StormBorder.copy(alpha = 0.5f))
+    ) {
+        Row(
+            modifier = Modifier.padding(18.dp).fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(link.accountName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = StormTextMain)
+                    Spacer(Modifier.width(8.dp))
+                    Surface(
+                        color = StormAmber.copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(6.dp),
+                        border = BorderStroke(0.5.dp, StormAmber.copy(alpha = 0.4f))
+                    ) {
+                        Text(
+                            text = "COMPARTIDA",
+                            fontSize = 8.sp,
+                            color = StormAmber,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+                Text("Dueño: ${link.ownerName ?: "Invitado"}", style = MaterialTheme.typography.bodySmall, color = StormTextMuted)
+            }
+            IconButton(onClick = { showDeleteConfirm = true }, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Default.LinkOff, contentDescription = "Eliminar vínculo", tint = StormTextMuted, modifier = Modifier.size(18.dp))
             }
         }
     }
