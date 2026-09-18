@@ -199,6 +199,7 @@ fun AccountSelectionScreen(
     var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
     var updateToShow by remember { mutableStateOf<UpdateCheckResult.UpdateAvailable?>(null) }
     var showReadOnlyCodeDialog by remember { mutableStateOf(false) }
+    var showInfraApprovalDialog by remember { mutableStateOf(false) }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -244,8 +245,31 @@ fun AccountSelectionScreen(
                 is DashboardViewModel.UiEvent.DownloadingUpdate -> {
                     snackbarHostState.showSnackbar("Descargando actualización: ${event.versionName}")
                 }
+                is DashboardViewModel.UiEvent.ShowInfraApprovalDialog -> {
+                    showInfraApprovalDialog = true
+                }
             }
         }
+    }
+
+    if (showInfraApprovalDialog) {
+        AlertDialog(
+            onDismissRequest = { showInfraApprovalDialog = false },
+            title = { Text("¡Acceso a la Nube Aprobado!", fontWeight = FontWeight.Bold) },
+            text = { Text("Tu dispositivo ha sido autorizado. Para activar las funciones de respaldo, es necesario cerrar esta sesión temporal e iniciar con Google.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showInfraApprovalDialog = false
+                        viewModel.onSignOutClick()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = EarnGreen)
+                ) { Text("Cerrar Sesión", color = StormBackground, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showInfraApprovalDialog = false }) { Text("Ahora no") }
+            }
+        )
     }
 
     if (updateToShow != null) {

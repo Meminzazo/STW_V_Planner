@@ -3,27 +3,26 @@
 
 ---
 
-## 📱 Guía para el Usuario (v4.0.0 - Versión Social & Nube Conectada)
+## 📱 Guía para el Usuario (v4.1.0 - Automatización & HUD Espejo)
 
-Esta versión marca un hito en la conectividad del proyecto, permitiendo compartir cuentas, actualizar la app sin salir de ella y solicitar acceso a la infraestructura de forma oficial.
+Esta versión perfecciona la experiencia social con sincronización automática de fondo y un visor de solo lectura que es un reflejo exacto de la cuenta real.
 
-### ✨ Novedades de la v4.0.0
-- 🔄 **Actualizador In-App**: Recibe notificaciones de nuevas versiones y descárgalas directamente desde el HUD de cuentas.
-- 👥 **Vista Compartida de Solo Lectura**: Genera un código de 10 caracteres para que otros vean tus estadísticas (balance, gráficos de ingresos/gastos y transacciones recientes) sin riesgo de modificación.
-- 📌 **Cuentas Vinculadas**: Guarda los códigos de tus amigos para acceder a sus vistas compartidas con un solo toque desde tu lista principal.
-- 🌐 **Solicitud de Acceso**: ¿Sin acceso a la nube? Envía tu token de dispositivo directamente al administrador desde la app para recibir autorización rápida.
-- ⚙️ **Mantenimiento Automático**: La app ahora limpia archivos temporales y versiones antiguas para ahorrar espacio.
+### ✨ Novedades de la v4.1.0
+- 🤖 **Respaldo Automático**: Olvídate de subir tus datos manualmente. La app ahora realiza un backup y actualiza tu vista compartida cada semana en segundo plano.
+- 🪞 **HUD Espejo Total**: El visor de solo lectura ahora permite ver desgloses por categoría y detalles de regalos, igual que la cuenta del dueño.
+- ✅ **Verificación Instantánea**: ¿Pediste acceso a la nube? Usa el nuevo botón de verificación para entrar en cuanto el administrador te apruebe.
+- 🛠️ **UX Refinada**: Mejoras en el teclado y formato de códigos para una experiencia más fluida.
 
 ### ✨ Funciones Principales
 - 📊 **Cuentas Ilimitadas**: Gestiona tu cuenta principal y las de tus amigos por separado.
 - ⚡ **Registro Veloz**: Botones rápidos para misiones diarias (+100 o +150) y alertas (+50).
 - 📅 **Calendario Completo**: Historial visual mes a mes para un control total.
-- ☁️ **Respaldo Manual**: Tú decides cuándo guardar. El botón "Subir a la nube" sincroniza tu estado y actualiza tu vista compartida automáticamente.
+- ☁️ **Nube Inteligente**: Respaldo automático semanal y actualización de snapshots compartidos sin mover un dedo.
 
 ### 📥 Instalación
-1. Descarga el archivo `STW_V_Planner_v4.0.0.apk` de la raíz de este proyecto.
+1. Descarga el archivo `STW_V_Planner_v4.1.0.apk` de la raíz de este proyecto.
 2. Abre el archivo y permite la instalación de "Fuentes desconocidas".
-3. A partir de esta versión, podrás actualizar automáticamente desde dentro de la app.
+3. **Actualizaciones**: Recibirás un aviso dentro de la app cada vez que haya una versión nueva disponible.
 
 ---
 
@@ -31,8 +30,8 @@ Esta versión marca un hito en la conectividad del proyecto, permitiendo compart
 
 ### 1. Acceso y Social
 - **Google**: Activa el respaldo en la nube, sincronización y generación de vistas compartidas.
-- **Modo Invitado**: Uso local. Puedes ver cuentas compartidas de otros mediante código, pero no puedes subir las tuyas hasta vincular Google.
-- **Compartir**: Entra al detalle de una cuenta, toca el icono de compartir y envía el código de 10 caracteres.
+- **Modo Invitado**: Uso local. Puedes ver cuentas compartidas de otros mediante código.
+- **Vincular Cuentas**: Introduce el código de un amigo una vez y quedará guardado en tu lista principal para acceso rápido.
 
 ### 2. Gestión de la Nube (Solo Google)
 - **Subir a la nube**: Respalda tu base de datos completa y actualiza tu vista compartida activa.
@@ -45,6 +44,7 @@ Esta versión marca un hito en la conectividad del proyecto, permitiendo compart
 
 ### 🏗️ Arquitectura
 - **Clean Architecture + MVVM**.
+- **Workers**: WorkManager para respaldos semanales y recordatorios.
 - **Data**: Room (Local), Firestore (Nube), GitHub API (Actualizaciones).
 - **Notificaciones**: Integración con EmailJS para solicitudes de infraestructura.
 

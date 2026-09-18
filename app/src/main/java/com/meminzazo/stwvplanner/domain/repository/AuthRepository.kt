@@ -8,6 +8,7 @@ interface AuthRepository {
     val isUserLocal: Flow<Boolean>
     suspend fun signInWithGoogle(idToken: String): Result<User>
     suspend fun signInLocally(): Result<User>
+    suspend fun signInAnonymously(): Result<User>
     suspend fun signOut()
     
     fun isGuestBannerMinimized(): Flow<Boolean>
@@ -15,4 +16,5 @@ interface AuthRepository {
     
     suspend fun getAppCheckDebugToken(): String?
     suspend fun ensureAppCheckTokenGenerated()
+    suspend fun checkAppCheckStatus(): Result<Unit>
 }

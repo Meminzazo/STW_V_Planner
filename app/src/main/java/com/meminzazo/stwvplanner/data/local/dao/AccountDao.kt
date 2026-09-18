@@ -21,6 +21,9 @@ interface AccountDao {
     @Query("SELECT * FROM accounts WHERE parentAccountId = :parentId AND isDeleted = 1")
     fun getDeletedAccountsByParent(parentId: Long): Flow<List<AccountEntity>>
 
+    @Query("SELECT * FROM accounts WHERE parentAccountId = :parentId AND isDeleted = 0")
+    suspend fun getAccountsByParentList(parentId: Long): List<AccountEntity>
+
     @Query("SELECT * FROM accounts WHERE id = :id AND isDeleted = 0")
     suspend fun getAccountById(id: Long): AccountEntity?
 

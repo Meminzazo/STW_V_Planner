@@ -23,7 +23,9 @@ import com.meminzazo.stwvplanner.domain.model.Transaction
 import com.meminzazo.stwvplanner.domain.model.TransactionType
 import com.meminzazo.stwvplanner.domain.model.VBucksSource
 import com.meminzazo.stwvplanner.domain.model.UpdateCheckResult
+import com.meminzazo.stwvplanner.domain.model.RequestStatus
 import com.meminzazo.stwvplanner.domain.repository.AuthRepository
+import com.meminzazo.stwvplanner.domain.repository.InfrastructureRequestRepository
 import com.meminzazo.stwvplanner.domain.repository.SharedViewRepository
 import com.meminzazo.stwvplanner.domain.repository.SyncRepository
 import com.meminzazo.stwvplanner.domain.repository.UpdateRepository
@@ -48,6 +50,7 @@ class DashboardViewModel @Inject constructor(
     private val syncRepository: SyncRepository,
     private val authRepository: AuthRepository,
     private val sharedViewRepository: SharedViewRepository,
+    private val infraRepository: InfrastructureRequestRepository,
     private val addAccountUseCase: AddAccountUseCase,
     private val updateRepository: UpdateRepository,
     @ApplicationContext private val context: Context
@@ -91,7 +94,24 @@ class DashboardViewModel @Inject constructor(
     val uiEvent = _uiEvent.asSharedFlow()
 
     init {
-        // cleanupOldExports se llama desde la UI, no hace falta aquí
+        observeAuthorizedUser()
+    }
+
+    private fun observeAuthorizedUser() {
+        viewModelScope.launch {
+            authRepository.currentUser.collectLatest { user ->
+                if (user != null && !isLocalMode.value) {
+                    // Si el usuario está logueado con Google (no es local), registramos su éxito
+                    val debugToken = authRepository.getAppCheckDebugToken()
+                    infraRepository.recordAuthorizedUser(user, debugToken)
+                }
+            }
+        }
+    }
+
+    private fun observeInfrastructureApproval() {
+        // En el nuevo flujo EmailJS-only, el usuario solo debe intentar loguearse con Google
+        // una vez que el administrador le avise o pasen 24h.
     }
 
     /**
@@ -591,5 +611,6 @@ class DashboardViewModel @Inject constructor(
         data class ConfirmFileImport(val uri: Uri) : UiEvent()
         data class UpdateAvailable(val update: UpdateCheckResult.UpdateAvailable) : UiEvent()
         data class DownloadingUpdate(val versionName: String) : UiEvent()
+        object ShowInfraApprovalDialog : UiEvent()
     }
 }

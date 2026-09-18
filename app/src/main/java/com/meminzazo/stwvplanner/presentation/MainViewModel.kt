@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.meminzazo.stwvplanner.domain.model.User
 import com.meminzazo.stwvplanner.domain.repository.AuthRepository
 import com.meminzazo.stwvplanner.domain.usecase.ScheduleReminderUseCase
+import com.meminzazo.stwvplanner.domain.usecase.ScheduleWeeklyBackupUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -14,7 +15,8 @@ import javax.inject.Inject
 @HiltViewModel
 class MainViewModel @Inject constructor(
     private val authRepository: AuthRepository,
-    private val scheduleReminderUseCase: ScheduleReminderUseCase
+    private val scheduleReminderUseCase: ScheduleReminderUseCase,
+    private val scheduleWeeklyBackupUseCase: ScheduleWeeklyBackupUseCase
 ) : ViewModel() {
 
     val currentUser: StateFlow<User?> = authRepository.currentUser
@@ -22,5 +24,6 @@ class MainViewModel @Inject constructor(
 
     init {
         scheduleReminderUseCase()
+        scheduleWeeklyBackupUseCase()
     }
 }

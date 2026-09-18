@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -14,13 +17,25 @@ android {
         applicationId = "com.meminzazo.stwvplanner"
         minSdk = 28
         targetSdk = 36
-        versionCode = 5
-        versionName = "4.0.0"
+        versionCode = 6
+        versionName = "4.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
         buildConfigField("String", "GITHUB_REPO_OWNER", "\"Meminzazo\"")
         buildConfigField("String", "GITHUB_REPO_NAME", "\"STW_V_Planner\"")
+
+        // EmailJS Configuration from local.properties
+        val localProperties = Properties()
+        val localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            localProperties.load(FileInputStream(localPropertiesFile))
+        }
+
+        buildConfigField("String", "EMAILJS_SERVICE_ID", "\"${localProperties.getProperty("emailjs.service.id") ?: ""}\"")
+        buildConfigField("String", "EMAILJS_TEMPLATE_ID", "\"${localProperties.getProperty("emailjs.template.id") ?: ""}\"")
+        buildConfigField("String", "EMAILJS_PUBLIC_KEY", "\"${localProperties.getProperty("emailjs.public.key") ?: ""}\"")
+        buildConfigField("String", "EMAILJS_PRIVATE_KEY", "\"${localProperties.getProperty("emailjs.private.key") ?: ""}\"")
     }
 
     buildTypes {

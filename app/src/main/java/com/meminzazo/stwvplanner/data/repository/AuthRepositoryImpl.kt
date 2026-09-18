@@ -61,6 +61,16 @@ class AuthRepositoryImpl @Inject constructor(
         return Result.success(User(id = "local_user", email = "offline@local", displayName = "Invitado", photoUrl = null))
     }
 
+    override suspend fun signInAnonymously(): Result<User> {
+        return try {
+            val result = firebaseAuth.signInAnonymously().await()
+            val firebaseUser = result.user ?: return Result.failure(Exception("Usuario nulo"))
+            Result.success(mapFirebaseUser(firebaseUser))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     override suspend fun signOut() {
         firebaseAuth.signOut()
         setLocalMode(false)
@@ -101,6 +111,17 @@ class AuthRepositoryImpl @Inject constructor(
             appCheck.getAppCheckToken(false).await()
         } catch (_: Exception) {
             // No importa si falla (ej. sin red), el objetivo es disparar la inicialización local.
+        }
+    }
+
+    override suspend fun checkAppCheckStatus(): Result<Unit> {
+        return try {
+            // Intentamos obtener un token forzando el refresco (true).
+            // Si el dispositivo no está registrado, esto lanzará una excepción con error 403.
+            appCheck.getAppCheckToken(true).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 
