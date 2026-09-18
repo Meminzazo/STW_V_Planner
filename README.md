@@ -1,52 +1,147 @@
 # STW V Planner 🚀
-**La herramienta definitiva para gestionar tus pavos de Fortnite: Salvar el Mundo.**
+
+Aplicación Android para llevar el control de **Pavos de Fortnite: Salvar el Mundo (STW)**.
+
+Permite gestionar varias cuentas, registrar ganancias, consultar el historial, realizar copias de seguridad y compartir una cuenta mediante una vista de solo lectura.
+
+## ✨ Características
+
+* 👤 Gestión de múltiples cuentas.
+* ⚡ Registro rápido de misiones y alertas.
+* 📅 Historial y calendario de ganancias.
+* ☁️ Copias de seguridad y restauración.
+* 🤖 Respaldo automático semanal.
+* 🪞 **Shared View / HUD Mirror** de solo lectura.
+* 🔄 Transferencia de datos entre dispositivos mediante código temporal.
+* 🔐 Inicio de sesión con Google y funciones de nube.
+* 🔄 Comprobación de nuevas versiones desde GitHub.
+
+## 📥 Instalación
+
+Descarga la versión más reciente desde **GitHub Releases** e instala el APK.
+
+En Android puede ser necesario permitir la instalación desde fuentes desconocidas para la aplicación desde la que abras el APK.
 
 ---
 
-## 📱 Guía para el Usuario (v4.1.0 - Automatización & HUD Espejo)
+# 🕹️ Guía rápida
 
-Esta versión perfecciona la experiencia social con sincronización automática de fondo y un visor de solo lectura que es un reflejo exacto de la cuenta real.
+## 1. Crear una cuenta
 
-### ✨ Novedades de la v4.1.0
-- 🤖 **Respaldo Automático**: Olvídate de subir tus datos manualmente. La app ahora realiza un backup y actualiza tu vista compartida cada semana en segundo plano.
-- 🪞 **HUD Espejo Total**: El visor de solo lectura ahora permite ver desgloses por categoría y detalles de regalos, igual que la cuenta del dueño.
-- ✅ **Verificación Instantánea**: ¿Pediste acceso a la nube? Usa el nuevo botón de verificación para entrar en cuanto el administrador te apruebe.
-- 🛠️ **UX Refinada**: Mejoras en el teclado y formato de códigos para una experiencia más fluida.
+Al iniciar la aplicación puedes utilizarla en **modo local** o iniciar sesión con Google.
 
-### ✨ Funciones Principales
-- 📊 **Cuentas Ilimitadas**: Gestiona tu cuenta principal y las de tus amigos por separado.
-- ⚡ **Registro Veloz**: Botones rápidos para misiones diarias (+100 o +150) y alertas (+50).
-- 📅 **Calendario Completo**: Historial visual mes a mes para un control total.
-- ☁️ **Nube Inteligente**: Respaldo automático semanal y actualización de snapshots compartidos sin mover un dedo.
+Para utilizar las funciones de nube, inicia sesión con tu cuenta de Google.
 
-### 📥 Instalación
-1. Descarga el archivo `STW_V_Planner_v4.1.0.apk` de la raíz de este proyecto.
-2. Abre el archivo y permite la instalación de "Fuentes desconocidas".
-3. **Actualizaciones**: Recibirás un aviso dentro de la app cada vez que haya una versión nueva disponible.
+Una vez dentro, crea o selecciona la cuenta de STW que quieras administrar.
 
 ---
 
-## 🕹️ Guía de Uso Rápida
+## 2. Registrar ganancias
 
-### 1. Acceso y Social
-- **Google**: Activa el respaldo en la nube, sincronización y generación de vistas compartidas.
-- **Modo Invitado**: Uso local. Puedes ver cuentas compartidas de otros mediante código.
-- **Vincular Cuentas**: Introduce el código de un amigo una vez y quedará guardado en tu lista principal para acceso rápido.
+Desde la pantalla principal selecciona la cuenta correspondiente.
 
-### 2. Gestión de la Nube (Solo Google)
-- **Subir a la nube**: Respalda tu base de datos completa y actualiza tu vista compartida activa.
-- **Bajar de la nube**: Recupera tus datos en cualquier momento.
-- **Transferencia**: Genera códigos de 10 dígitos para mover toda tu base de datos a otro dispositivo (Caducidad: 1h).
+Utiliza los botones de registro rápido para añadir las ganancias obtenidas:
+
+* **+100** — Misión diaria.
+* **+150** — Misión diaria.
+* **+50** — Alerta.
+
+Los movimientos registrados aparecen en el historial y actualizan el balance de la cuenta.
+
+---
+
+## 3. Consultar el historial
+
+Abre el calendario para consultar los registros por fecha.
+
+Puedes revisar:
+
+* Ganancias diarias.
+* Historial de movimientos.
+* Balance de la cuenta.
+* Estadísticas y gráficas.
+* Desglose de las ganancias por categoría.
 
 ---
 
-## 🛠️ Guía para Desarrolladores
+## 4. Copia de seguridad
 
-### 🏗️ Arquitectura
-- **Clean Architecture + MVVM**.
-- **Workers**: WorkManager para respaldos semanales y recordatorios.
-- **Data**: Room (Local), Firestore (Nube), GitHub API (Actualizaciones).
-- **Notificaciones**: Integración con EmailJS para solicitudes de infraestructura.
+Si tienes una cuenta de Google configurada:
+
+**Subir a la nube**
+→ Guarda una copia de tus datos y actualiza la vista compartida activa.
+
+**Bajar de la nube**
+→ Recupera los datos almacenados en la nube.
+
+Además, la aplicación puede realizar un **respaldo automático semanal** en segundo plano.
 
 ---
-Creado con ❤️ para la comunidad de Fortnite STW.
+
+## 5. Compartir una cuenta
+
+Desde las opciones de la cuenta puedes generar una **Shared View**.
+
+La aplicación genera un código que puedes compartir con otra persona.
+
+La persona que introduzca el código podrá consultar la información disponible, incluyendo el balance, historial y estadísticas, pero **no podrá modificar la cuenta**.
+
+> Trata el código como privado. Cualquier persona que lo tenga podrá acceder a la información asociada a esa vista.
+
+---
+
+## 6. Vincular una cuenta compartida
+
+Si otra persona te proporciona un código de Shared View:
+
+1. Introduce el código en la opción correspondiente.
+2. La cuenta aparecerá entre tus cuentas vinculadas.
+3. Podrás consultarla sin modificar sus datos.
+
+Esto permite tener varias cuentas compartidas disponibles desde la misma aplicación.
+
+---
+
+## 7. Transferir tus datos a otro dispositivo
+
+Para mover toda tu base de datos:
+
+**En el dispositivo anterior**
+
+1. Abre la opción de **Transferencia**.
+2. Genera un código.
+3. Guarda el código.
+
+**En el nuevo dispositivo**
+
+1. Abre la opción de transferencia.
+2. Introduce el código.
+3. Confirma la importación.
+
+Los códigos de transferencia son temporales y tienen una duración de **1 hora**.
+
+> No compartas un código de transferencia con otras personas.
+
+---
+
+## 🛠️ Tecnologías
+
+* Kotlin
+* Jetpack Compose
+* Clean Architecture + MVVM
+* Room
+* Hilt
+* Firebase Authentication
+* Cloud Firestore
+* Firebase App Check
+* WorkManager
+* GitHub API
+* EmailJS
+
+## 📌 Información
+
+**Versión actual:** 4.1.0
+
+Proyecto independiente para la comunidad de Fortnite: Salvar el Mundo.
+
+No está afiliado, patrocinado ni respaldado por Epic Games.
