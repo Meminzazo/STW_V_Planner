@@ -14,8 +14,10 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.automirrored.filled.Help
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
@@ -24,6 +26,7 @@ import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.VpnKey
@@ -49,15 +52,22 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.meminzazo.stwvplanner.BuildConfig
 import com.meminzazo.stwvplanner.domain.model.Account
 import com.meminzazo.stwvplanner.domain.model.UpdateCheckResult
-import com.meminzazo.stwvplanner.presentation.navigation.Screen
-import com.meminzazo.stwvplanner.presentation.dashboard.DashboardViewModel
-import com.meminzazo.stwvplanner.presentation.theme.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.unit.toSize
 import androidx.navigation.NavController
+import com.meminzazo.stwvplanner.presentation.common.TutorialViewModel
+import com.meminzazo.stwvplanner.presentation.common.TutorialStep
+import com.meminzazo.stwvplanner.presentation.common.GuidedTutorialOverlay
 import com.meminzazo.stwvplanner.domain.model.SharedLink
+import com.meminzazo.stwvplanner.presentation.navigation.Screen
+import com.meminzazo.stwvplanner.presentation.dashboard.DashboardViewModel
+import com.meminzazo.stwvplanner.presentation.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -175,6 +185,7 @@ private fun UpdateDialog(
 @Composable
 fun AccountSelectionScreen(
     viewModel: DashboardViewModel = hiltViewModel(),
+    tutorialViewModel: TutorialViewModel = hiltViewModel(),
     onAccountSelected: (Long) -> Unit,
     navController: NavController,
     snackbarHostState: SnackbarHostState
@@ -188,10 +199,14 @@ fun AccountSelectionScreen(
     val isLocalMode by viewModel.isLocalMode.collectAsState()
     val isGuestBannerMinimized by viewModel.isGuestBannerMinimized.collectAsState()
 
+    val tutorialStep by tutorialViewModel.currentStep.collectAsState()
+    val highlightRect by tutorialViewModel.highlightRect.collectAsState()
+
     var showAddAccountDialog by remember { mutableStateOf(false) }
     var showRestoreConfirm by remember { mutableStateOf(false) }
     var showCloudMenu by remember { mutableStateOf(false) }
     var showCloudOptions by remember { mutableStateOf(false) }
+    var showSettingsMenu by remember { mutableStateOf(false) }
     var showExportOptionsDialog by remember { mutableStateOf(false) }
     var showTransferCodeDialog by remember { mutableStateOf<String?>(null) }
     var showImportCodeDialog by remember { mutableStateOf(false) }
@@ -216,6 +231,7 @@ fun AccountSelectionScreen(
     LaunchedEffect(Unit) {
         viewModel.cleanupOldFiles(context)
         viewModel.checkForUpdates()
+        tutorialViewModel.checkAndStartDashboardTutorial()
         viewModel.uiEvent.collect { event ->
             when (event) {
                 is DashboardViewModel.UiEvent.ShowError -> {
@@ -247,6 +263,9 @@ fun AccountSelectionScreen(
                 }
                 is DashboardViewModel.UiEvent.ShowInfraApprovalDialog -> {
                     showInfraApprovalDialog = true
+                }
+                is DashboardViewModel.UiEvent.NavigateToOnboarding -> {
+                    navController.navigate(Screen.Onboarding.route)
                 }
             }
         }
@@ -530,7 +549,54 @@ fun AccountSelectionScreen(
                             color = StormCyan
                         )
                     } else {
-                        Box {
+                        Box(modifier = Modifier.onGloballyPositioned { layoutCoordinates ->
+                            if (tutorialStep == TutorialStep.DASHBOARD_SETTINGS) {
+                                val position = layoutCoordinates.positionInRoot()
+                                tutorialViewModel.setHighlightRect(Rect(position, layoutCoordinates.size.toSize()))
+                            }
+                        }) {
+                            IconButton(onClick = {
+                                showSettingsMenu = true
+                            }) {
+                                Icon(Icons.Default.Settings, contentDescription = "Ajustes", tint = StormTextMuted)
+                            }
+                            DropdownMenu(
+                                expanded = showSettingsMenu,
+                                onDismissRequest = { showSettingsMenu = false },
+                                containerColor = StormCardElevated,
+                                border = BorderStroke(1.dp, StormBorder)
+                            ) {
+                                Text(
+                                    "OPCIONES",
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = StormCyan,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Ver tutorial de nuevo", color = StormTextMain) },
+                                    onClick = {
+                                        showSettingsMenu = false
+                                        viewModel.resetOnboarding()
+                                    },
+                                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.Help, contentDescription = null, tint = StormCyan) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Iniciar guía de campo", color = StormTextMain) },
+                                    onClick = {
+                                        showSettingsMenu = false
+                                        tutorialViewModel.startDashboardTutorial()
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.PlayArrow, contentDescription = null, tint = StormCyan) }
+                                )
+                            }
+                        }
+                        Box(modifier = Modifier.onGloballyPositioned { layoutCoordinates ->
+                            if (tutorialStep == TutorialStep.DASHBOARD_CLOUD_MENU) {
+                                val position = layoutCoordinates.positionInRoot()
+                                tutorialViewModel.setHighlightRect(Rect(position, layoutCoordinates.size.toSize()))
+                            }
+                        }) {
                             IconButton(onClick = {
                                 showCloudMenu = true
                                 showCloudOptions = false
@@ -656,7 +722,13 @@ fun AccountSelectionScreen(
                 onClick = { showAddAccountDialog = true },
                 containerColor = StormCyan,
                 contentColor = StormBackground,
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.onGloballyPositioned { layoutCoordinates ->
+                    if (tutorialStep == TutorialStep.DASHBOARD_ADD_ACCOUNT) {
+                        val position = layoutCoordinates.positionInRoot()
+                        tutorialViewModel.setHighlightRect(Rect(position, layoutCoordinates.size.toSize()))
+                    }
+                }
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Añadir Cuenta")
             }
@@ -848,6 +920,26 @@ fun AccountSelectionScreen(
                     color = StormTextMuted.copy(alpha = 0.5f)
                 )
             }
+        }
+
+        // --- TUTORIAL OVERLAY ---
+        if (tutorialStep != TutorialStep.NONE && tutorialStep.name.startsWith("DASHBOARD")) {
+            val (title, desc) = when (tutorialStep) {
+                TutorialStep.DASHBOARD_WELCOME -> "¡SISTEMA EN LÍNEA!" to "Bienvenido Comandante. Este es su centro de mando para la gestión de suministros V."
+                TutorialStep.DASHBOARD_ADD_ACCOUNT -> "REGISTRO DE TROPAS" to "Pulse este botón (+) para registrar un nuevo perfil de gestión. Puede añadir sus cuentas principales o de colaboradores."
+                TutorialStep.DASHBOARD_CLOUD_MENU -> "BÚNKER DE DATOS" to "Utilice este icono de NUBE para realizar respaldos manuales en Firebase o solicitar autorizaciones de seguridad (App Check)."
+                TutorialStep.DASHBOARD_SETTINGS -> "CONFIGURACIÓN DEL HUD" to "Desde aquí puede repetir esta guía o ver la introducción visual del sistema en cualquier momento."
+                else -> "" to ""
+            }
+
+            GuidedTutorialOverlay(
+                highlightRect = highlightRect,
+                title = title,
+                description = desc,
+                buttonText = if (tutorialStep == TutorialStep.DASHBOARD_SETTINGS) "COMPLETAR" else "ENTENDIDO",
+                onNext = { tutorialViewModel.nextStep() },
+                onSkip = { tutorialViewModel.skipTutorial() }
+            )
         }
     }
 }

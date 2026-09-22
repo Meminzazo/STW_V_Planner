@@ -17,4 +17,13 @@ interface AuthRepository {
     suspend fun getAppCheckDebugToken(): String?
     suspend fun ensureAppCheckTokenGenerated()
     suspend fun checkAppCheckStatus(): Result<Unit>
+    
+    fun isOnboardingCompleted(): Flow<Boolean>
+    suspend fun setOnboardingCompleted(completed: Boolean)
+
+    fun isDashboardTutorialCompleted(): Flow<Boolean>
+    suspend fun setDashboardTutorialCompleted(completed: Boolean)
+
+    fun isDetailTutorialCompleted(): Flow<Boolean>
+    suspend fun setDetailTutorialCompleted(completed: Boolean)
 }

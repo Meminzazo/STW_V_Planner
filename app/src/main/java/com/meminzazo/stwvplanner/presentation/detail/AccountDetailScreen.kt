@@ -15,6 +15,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Help
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
@@ -39,6 +40,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.unit.toSize
+import com.meminzazo.stwvplanner.presentation.common.TutorialViewModel
+import com.meminzazo.stwvplanner.presentation.common.TutorialStep
+import com.meminzazo.stwvplanner.presentation.common.GuidedTutorialOverlay
 import com.meminzazo.stwvplanner.domain.model.Account
 import com.meminzazo.stwvplanner.domain.model.Transaction
 import com.meminzazo.stwvplanner.domain.model.TransactionType
@@ -52,6 +60,7 @@ import java.util.*
 @Composable
 fun AccountDetailScreen(
     viewModel: AccountDetailViewModel = hiltViewModel(),
+    tutorialViewModel: TutorialViewModel = hiltViewModel(),
     onPopBackStack: () -> Unit,
     onNavigateToHistory: (Long) -> Unit,
     onNavigateToSummary: (Long) -> Unit,
@@ -76,6 +85,9 @@ fun AccountDetailScreen(
     val totalIncomeMensual by viewModel.totalIncomeMensual.collectAsState()
     val dependentAccounts by viewModel.dependentAccounts.collectAsState()
 
+    val tutorialStep by tutorialViewModel.currentStep.collectAsState()
+    val highlightRect by tutorialViewModel.highlightRect.collectAsState()
+
     var showAddDependentDialog by remember { mutableStateOf(false) }
     var showManualEntryDialog by remember { mutableStateOf(false) }
     var showDailyAmountDialog by remember { mutableStateOf(false) }
@@ -93,6 +105,7 @@ fun AccountDetailScreen(
     val clipboardManager = LocalClipboardManager.current
 
     LaunchedEffect(Unit) {
+        tutorialViewModel.checkAndStartDetailTutorial()
         viewModel.uiEvent.collect { event ->
             when (event) {
                 is AccountDetailViewModel.UiEvent.ShowError -> snackbarHostState.showSnackbar(event.message)
@@ -236,7 +249,18 @@ fun AccountDetailScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showShareReadOnlyDialog = true }) {
+                    IconButton(onClick = { tutorialViewModel.startDetailTutorial() }) {
+                        Icon(Icons.AutoMirrored.Filled.Help, contentDescription = "Ayuda", tint = StormTextMuted)
+                    }
+                    IconButton(
+                        onClick = { showShareReadOnlyDialog = true },
+                        modifier = Modifier.onGloballyPositioned { layoutCoordinates ->
+                            if (tutorialStep == TutorialStep.DETAIL_SHARE) {
+                                val position = layoutCoordinates.positionInRoot()
+                                tutorialViewModel.setHighlightRect(Rect(position, layoutCoordinates.size.toSize()))
+                            }
+                        }
+                    ) {
                         Icon(Icons.Default.Share, contentDescription = "Compartir", tint = StormCyan)
                     }
                 },
@@ -259,40 +283,55 @@ fun AccountDetailScreen(
 
             // --- HERO SALDO ---
             item {
-                BalanceHeroCard(
-                    balance = balance,
-                    isDailyRegistered = isDailyRegistered,
-                    onAddDaily100 = { viewModel.onAddDailyClick(100) },
-                    onAddDaily150 = { viewModel.onAddDailyClick(150) },
-                    isMainAccount = account?.parentAccountId == null
-                )
+                Box(modifier = Modifier.onGloballyPositioned { layoutCoordinates ->
+                    if (tutorialStep == TutorialStep.DETAIL_BALANCE || tutorialStep == TutorialStep.DETAIL_DAILY_MISSION) {
+                        val position = layoutCoordinates.positionInRoot()
+                        tutorialViewModel.setHighlightRect(Rect(position, layoutCoordinates.size.toSize()))
+                    }
+                }) {
+                    BalanceHeroCard(
+                        balance = balance,
+                        isDailyRegistered = isDailyRegistered,
+                        onAddDaily100 = { viewModel.onAddDailyClick(100) },
+                        onAddDaily150 = { viewModel.onAddDailyClick(150) },
+                        isMainAccount = account?.parentAccountId == null
+                    )
+                }
             }
 
             // --- ACCIONES RÁPIDAS ---
             item {
                 SectionHeader("ACCIONES RÁPIDAS")
                 Spacer(modifier = Modifier.height(10.dp))
-                QuickActionsGrid(
-                    account = account,
-                    isDailyRegistered = isDailyRegistered,
-                    onDailyClick = { showDailyAmountDialog = true },
-                    onAlertClick = { viewModel.onAddAlertClick() },
-                    onExternalClick = {
-                        manualEntryInitialType = TransactionType.EARN
-                        manualEntryInitialSource = VBucksSource.EXTERNAL
-                        showManualEntryDialog = true
-                    },
-                    onExpenseClick = {
-                        manualEntryInitialType = TransactionType.SPEND
-                        manualEntryInitialSource = VBucksSource.GIFT
-                        showManualEntryDialog = true
-                    },
-                    onManualClick = {
-                        manualEntryInitialType = null
-                        manualEntryInitialSource = null
-                        showManualEntryDialog = true
+                Box(modifier = Modifier.onGloballyPositioned { layoutCoordinates ->
+                    if (tutorialStep == TutorialStep.DETAIL_DAILY_MISSION) {
+                        val position = layoutCoordinates.positionInRoot()
+                        tutorialViewModel.setHighlightRect(Rect(position, layoutCoordinates.size.toSize()))
                     }
-                )
+                }) {
+                    QuickActionsGrid(
+                        account = account,
+                        isDailyRegistered = isDailyRegistered,
+                        onDailyClick = { showDailyAmountDialog = true },
+                        onAlertClick = { viewModel.onAddAlertClick() },
+                        onExternalClick = {
+                            manualEntryInitialType = TransactionType.EARN
+                            manualEntryInitialSource = VBucksSource.EXTERNAL
+                            showManualEntryDialog = true
+                        },
+                        onExpenseClick = {
+                            manualEntryInitialType = TransactionType.SPEND
+                            manualEntryInitialSource = VBucksSource.GIFT
+                            showManualEntryDialog = true
+                        },
+                        onManualClick = {
+                            manualEntryInitialType = null
+                            manualEntryInitialSource = null
+                            showManualEntryDialog = true
+                        },
+                        tutorialViewModel = tutorialViewModel
+                    )
+                }
             }
 
             // --- ESTADÍSTICAS ---
@@ -399,6 +438,38 @@ fun AccountDetailScreen(
             }
 
             item { Spacer(modifier = Modifier.height(24.dp)) }
+        }
+
+        // --- TUTORIAL OVERLAY ---
+        if (tutorialStep != TutorialStep.NONE && tutorialStep.name.startsWith("DETAIL")) {
+            val (title, desc) = when (tutorialStep) {
+                TutorialStep.DETAIL_WELCOME -> "SALA DE SITUACIÓN" to "Analizando datos de la cuenta seleccionada. Aquí tiene el control total de sus movimientos."
+                TutorialStep.DETAIL_BALANCE -> "RESERVA DE PAVOS" to "Este es su saldo actual. Se calcula automáticamente sumando sus ganancias y restando sus gastos."
+                TutorialStep.DETAIL_DAILY_MISSION -> "MISIÓN DIARIA" to "¡No olvide su botín! Use estos botones para registrar rápidamente la recompensa de hoy (+100 o +150)."
+                TutorialStep.DETAIL_ALERT_MISSION -> "ALERTA DE MISIÓN" to "Use este acceso para sumar rápidamente alertas de misión (+50) a su balance."
+                TutorialStep.DETAIL_EXTERNAL_EARN -> "SUMINISTROS EXTERNOS" to "Para ganancias fuera de misiones normales (códigos, regalos recibidos, etc.)."
+                TutorialStep.DETAIL_EXPENSE_GIFT -> "GASTOS Y REGALOS" to "Registre aquí cuando gaste pavos en la tienda o envíe regalos a sus amigos vinculados."
+                TutorialStep.DETAIL_MANUAL_LOG -> "REGISTRO AVANZADO" to "Para cualquier otra transacción manual que requiera descripción personalizada o fechas pasadas."
+                TutorialStep.DETAIL_SHARE -> "RED DE INTELIGENCIA" to "Genere un código de 10 caracteres aquí para que otros vean este HUD en tiempo real (solo lectura)."
+                else -> "" to ""
+            }
+
+            // Map detail steps to highlighted elements
+            LaunchedEffect(tutorialStep) {
+                if (tutorialStep == TutorialStep.DETAIL_DAILY_MISSION) {
+                    // This one is tricky as it's inside BalanceHeroCard. 
+                    // For now we highlight the balance card during daily mission too
+                }
+            }
+
+            GuidedTutorialOverlay(
+                highlightRect = highlightRect,
+                title = title,
+                description = desc,
+                buttonText = if (tutorialStep == TutorialStep.DETAIL_SHARE) "MISIÓN CUMPLIDA" else "ENTENDIDO",
+                onNext = { tutorialViewModel.nextStep() },
+                onSkip = { tutorialViewModel.skipTutorial() }
+            )
         }
     }
 }
@@ -540,7 +611,8 @@ fun QuickActionsGrid(
     onAlertClick: () -> Unit,
     onExternalClick: () -> Unit,
     onExpenseClick: () -> Unit,
-    onManualClick: () -> Unit
+    onManualClick: () -> Unit,
+    tutorialViewModel: TutorialViewModel = hiltViewModel()
 ) {
     val buttonHeight = 46.dp
 
@@ -549,7 +621,12 @@ fun QuickActionsGrid(
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedButton(
                     onClick = onAlertClick,
-                    modifier = Modifier.weight(1f).height(buttonHeight),
+                    modifier = Modifier.weight(1f).height(buttonHeight).onGloballyPositioned { layoutCoordinates ->
+                        if (tutorialViewModel.currentStep.value == TutorialStep.DETAIL_ALERT_MISSION) {
+                            val position = layoutCoordinates.positionInRoot()
+                            tutorialViewModel.setHighlightRect(Rect(position, layoutCoordinates.size.toSize()))
+                        }
+                    },
                     shape = RoundedCornerShape(10.dp),
                     border = BorderStroke(1.dp, StormCyan),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = StormCyan)
@@ -558,7 +635,12 @@ fun QuickActionsGrid(
                 }
                 OutlinedButton(
                     onClick = onExternalClick,
-                    modifier = Modifier.weight(1f).height(buttonHeight),
+                    modifier = Modifier.weight(1f).height(buttonHeight).onGloballyPositioned { layoutCoordinates ->
+                        if (tutorialViewModel.currentStep.value == TutorialStep.DETAIL_EXTERNAL_EARN) {
+                            val position = layoutCoordinates.positionInRoot()
+                            tutorialViewModel.setHighlightRect(Rect(position, layoutCoordinates.size.toSize()))
+                        }
+                    },
                     shape = RoundedCornerShape(10.dp),
                     border = BorderStroke(1.dp, YellowAccent),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = YellowAccent)
@@ -569,7 +651,12 @@ fun QuickActionsGrid(
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedButton(
                     onClick = onExpenseClick,
-                    modifier = Modifier.weight(1f).height(buttonHeight),
+                    modifier = Modifier.weight(1f).height(buttonHeight).onGloballyPositioned { layoutCoordinates ->
+                        if (tutorialViewModel.currentStep.value == TutorialStep.DETAIL_EXPENSE_GIFT) {
+                            val position = layoutCoordinates.positionInRoot()
+                            tutorialViewModel.setHighlightRect(Rect(position, layoutCoordinates.size.toSize()))
+                        }
+                    },
                     shape = RoundedCornerShape(10.dp),
                     border = BorderStroke(1.dp, SpendRed),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = SpendRed)
@@ -578,7 +665,12 @@ fun QuickActionsGrid(
                 }
                 OutlinedButton(
                     onClick = onManualClick,
-                    modifier = Modifier.weight(1f).height(buttonHeight),
+                    modifier = Modifier.weight(1f).height(buttonHeight).onGloballyPositioned { layoutCoordinates ->
+                        if (tutorialViewModel.currentStep.value == TutorialStep.DETAIL_MANUAL_LOG) {
+                            val position = layoutCoordinates.positionInRoot()
+                            tutorialViewModel.setHighlightRect(Rect(position, layoutCoordinates.size.toSize()))
+                        }
+                    },
                     shape = RoundedCornerShape(10.dp),
                     border = BorderStroke(1.dp, PurpleAccent),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = PurpleAccent)

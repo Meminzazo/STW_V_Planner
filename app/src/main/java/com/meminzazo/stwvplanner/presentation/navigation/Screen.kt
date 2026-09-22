@@ -24,4 +24,6 @@ sealed class Screen(val route: String) {
     }
 
     object InfrastructureRequest : Screen("infrastructure_request")
+
+    object Onboarding : Screen("onboarding")
 }

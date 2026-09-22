@@ -249,6 +249,21 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
+    fun resetOnboarding() {
+        viewModelScope.launch {
+            authRepository.setOnboardingCompleted(false)
+            authRepository.setDashboardTutorialCompleted(false)
+            authRepository.setDetailTutorialCompleted(false)
+            _uiEvent.emit(UiEvent.NavigateToOnboarding)
+        }
+    }
+
+    fun setOnboardingCompleted() {
+        viewModelScope.launch {
+            authRepository.setOnboardingCompleted(true)
+        }
+    }
+
     fun onRestoreClick() {
         if (!isCloudActionAllowed()) return
         viewModelScope.launch {
@@ -612,5 +627,6 @@ class DashboardViewModel @Inject constructor(
         data class UpdateAvailable(val update: UpdateCheckResult.UpdateAvailable) : UiEvent()
         data class DownloadingUpdate(val versionName: String) : UiEvent()
         object ShowInfraApprovalDialog : UiEvent()
+        object NavigateToOnboarding : UiEvent()
     }
 }

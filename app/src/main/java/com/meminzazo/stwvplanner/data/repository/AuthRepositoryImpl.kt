@@ -22,6 +22,9 @@ class AuthRepositoryImpl @Inject constructor(
     private val prefs = context.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)
     private val _localModeFlow = MutableStateFlow(prefs.getBoolean("is_local_mode", false))
     private val _bannerMinimizedFlow = MutableStateFlow(prefs.getBoolean("guest_banner_minimized", false))
+    private val _onboardingCompletedFlow = MutableStateFlow(prefs.getBoolean("is_onboarding_completed", false))
+    private val _dashboardTutorialCompletedFlow = MutableStateFlow(prefs.getBoolean("is_dashboard_tutorial_completed", false))
+    private val _detailTutorialCompletedFlow = MutableStateFlow(prefs.getBoolean("is_detail_tutorial_completed", false))
 
     override val isUserLocal: Flow<Boolean> = _localModeFlow.asStateFlow()
 
@@ -123,6 +126,27 @@ class AuthRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    override fun isOnboardingCompleted(): Flow<Boolean> = _onboardingCompletedFlow.asStateFlow()
+
+    override suspend fun setOnboardingCompleted(completed: Boolean) {
+        prefs.edit().putBoolean("is_onboarding_completed", completed).apply()
+        _onboardingCompletedFlow.value = completed
+    }
+
+    override fun isDashboardTutorialCompleted(): Flow<Boolean> = _dashboardTutorialCompletedFlow.asStateFlow()
+
+    override suspend fun setDashboardTutorialCompleted(completed: Boolean) {
+        prefs.edit().putBoolean("is_dashboard_tutorial_completed", completed).apply()
+        _dashboardTutorialCompletedFlow.value = completed
+    }
+
+    override fun isDetailTutorialCompleted(): Flow<Boolean> = _detailTutorialCompletedFlow.asStateFlow()
+
+    override suspend fun setDetailTutorialCompleted(completed: Boolean) {
+        prefs.edit().putBoolean("is_detail_tutorial_completed", completed).apply()
+        _detailTutorialCompletedFlow.value = completed
     }
 
     private fun setLocalMode(enabled: Boolean) {

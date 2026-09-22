@@ -28,6 +28,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.meminzazo.stwvplanner.presentation.auth.AccountSelectionScreen
 import com.meminzazo.stwvplanner.presentation.auth.LoginScreen
+import com.meminzazo.stwvplanner.presentation.auth.OnboardingScreen
 import com.meminzazo.stwvplanner.presentation.detail.AccountDetailScreen
 import com.meminzazo.stwvplanner.presentation.expense.AddExpenseScreen
 import com.meminzazo.stwvplanner.presentation.history.HistoryScreen
@@ -46,6 +47,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val mainViewModel: MainViewModel = hiltViewModel()
             val currentUser by mainViewModel.currentUser.collectAsState()
+            val isOnboardingCompleted by mainViewModel.isOnboardingCompleted.collectAsState()
             val snackbarHostState = remember { SnackbarHostState() }
             val navController = rememberNavController()
 
@@ -77,7 +79,11 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     snackbarHost = { SnackbarHost(snackbarHostState) }
                 ) { innerPadding ->
-                    if (currentUser == null) {
+                    if (!isOnboardingCompleted) {
+                        OnboardingScreen(
+                            onFinished = { /* State updates automatically */ }
+                        )
+                    } else if (currentUser == null) {
                         LoginScreen(snackbarHostState = snackbarHostState)
                     } else {
                         NavHost(
@@ -91,6 +97,11 @@ class MainActivity : ComponentActivity() {
                                     },
                                     navController = navController,
                                     snackbarHostState = snackbarHostState
+                                )
+                            }
+                            composable(Screen.Onboarding.route) {
+                                OnboardingScreen(
+                                    onFinished = { navController.popBackStack() }
                                 )
                             }
                             composable(

@@ -22,6 +22,9 @@ class MainViewModel @Inject constructor(
     val currentUser: StateFlow<User?> = authRepository.currentUser
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
+    val isOnboardingCompleted: StateFlow<Boolean> = authRepository.isOnboardingCompleted()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
     init {
         scheduleReminderUseCase()
         scheduleWeeklyBackupUseCase()

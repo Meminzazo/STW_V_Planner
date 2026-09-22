@@ -3,9 +3,16 @@
 
 ---
 
-## 📱 Guía para el Usuario (v4.1.0 - Automatización & HUD Espejo)
+## 📱 Guía para el Usuario (v4.2.0 - Guía de Campo & Inmersión)
 
-Esta versión perfecciona la experiencia social con sincronización automática de fondo y un visor de solo lectura que es un reflejo exacto de la cuenta real.
+Esta versión introduce un sistema de aprendizaje interactivo que guía a los comandantes por cada rincón del HUD con total claridad y estilo.
+
+### ✨ Novedades de la v4.2.0
+- 🔦 **Guía de Campo (Spotlight)**: No te pierdas nunca. El nuevo tutorial resalta los botones reales de la app con un foco de luz y explicaciones detalladas.
+- 👋 **Bienvenida de Comandante**: Nueva introducción de 5 pasos para conocer las bases de la gestión de suministros.
+- 🤖 **Activación Inteligente**: La app detecta si eres nuevo y te ofrece ayuda automáticamente al entrar a cada sección.
+- ⚙️ **Control de HUD**: Reinicia tu entrenamiento en cualquier momento desde el nuevo menú de Ajustes.
+- 🎨 **Estilo STW**: Efectos visuales de monitor y avatares de soporte para una experiencia de juego real.
 
 ### ✨ Novedades de la v4.1.0
 - 🤖 **Respaldo Automático**: Olvídate de subir tus datos manualmente. La app ahora realiza un backup y actualiza tu vista compartida cada semana en segundo plano.
