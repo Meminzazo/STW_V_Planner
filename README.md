@@ -27,7 +27,7 @@ Esta versión introduce un sistema de aprendizaje interactivo que guía a los co
 - ☁️ **Nube Inteligente**: Respaldo automático semanal y actualización de snapshots compartidos sin mover un dedo.
 
 ### 📥 Instalación
-1. Descarga el archivo `STW_V_Planner_v4.1.0.apk` de la raíz de este proyecto.
+1. Descarga el archivo `STW_V_Planner_v4.2.0.apk` de la raíz de este proyecto.
 2. Abre el archivo y permite la instalación de "Fuentes desconocidas".
 3. **Actualizaciones**: Recibirás un aviso dentro de la app cada vez que haya una versión nueva disponible.
 
