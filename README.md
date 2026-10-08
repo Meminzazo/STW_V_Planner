@@ -3,47 +3,50 @@
 
 ---
 
-## 📱 Guía para el Usuario (v4.2.0 - Guía de Campo & Inmersión)
+## 📱 Guía para el Usuario
 
-Esta versión introduce un sistema de aprendizaje interactivo que guía a los comandantes por cada rincón del HUD con total claridad y estilo.
+STW V Planner te permite llevar un control detallado de tus ingresos y gastos de pavos, con sincronización en la nube, respaldo automático y funciones colaborativas.
 
-### ✨ Novedades de la v4.2.0
-- 🔦 **Guía de Campo (Spotlight)**: No te pierdas nunca. El nuevo tutorial resalta los botones reales de la app con un foco de luz y explicaciones detalladas.
-- 👋 **Bienvenida de Comandante**: Nueva introducción de 5 pasos para conocer las bases de la gestión de suministros.
-- 🤖 **Activación Inteligente**: La app detecta si eres nuevo y te ofrece ayuda automáticamente al entrar a cada sección.
-- ⚙️ **Control de HUD**: Reinicia tu entrenamiento en cualquier momento desde el nuevo menú de Ajustes.
-- 🎨 **Estilo STW**: Efectos visuales de monitor y avatares de soporte para una experiencia de juego real.
+### ✨ Características Destacadas
+- ⏱️ **Respaldo Automático Configurable**: Elige la frecuencia con la que se respaldan tus datos en la nube:
+  - *Al abrir la app* (limitado a máximo 1 vez por día).
+  - *1 Día* (diario).
+  - *1 Semana* (predeterminado).
+  - *1 Mes*.
+  - *Personalizado* (especifica el número exacto de días).
+- 🔘 **Control de Respaldo**: Interruptor sencillo para activar o desactivar el respaldo automático según tus preferencias, junto a un botón de configuración flotante ⚙️.
+- 📂 **Menú Nube Reestructurado**: División clara entre **RESPALDO (Manual / Automático)** y **CÓDIGOS DE TRANSFERENCIA**.
+- 🛡️ **Validación de Integridad**: Descargas de respaldo verificadas con hash SHA-256 y tamaño en bytes para garantizar que los datos estén intactos.
+- ⚡ **Experiencia de Uso Ágil**: Inicio de app directo e instantáneo.
+- 🔄 **Interfaz Refinada**: Animaciones fluidas e indicadores de carga precisos.
 
-### ✨ Novedades de la v4.1.0
-- 🤖 **Respaldo Automático**: Olvídate de subir tus datos manualmente. La app ahora realiza un backup y actualiza tu vista compartida cada semana en segundo plano.
-- 🪞 **HUD Espejo Total**: El visor de solo lectura ahora permite ver desgloses por categoría y detalles de regalos, igual que la cuenta del dueño.
-- ✅ **Verificación Instantánea**: ¿Pediste acceso a la nube? Usa el nuevo botón de verificación para entrar en cuanto el administrador te apruebe.
-- 🛠️ **UX Refinada**: Mejoras en el teclado y formato de códigos para una experiencia más fluida.
-
-### ✨ Funciones Principales
-- 📊 **Cuentas Ilimitadas**: Gestiona tu cuenta principal y las de tus amigos por separado.
+### 📊 Funciones Principales
+- 📊 **Cuentas Ilimitadas**: Gestiona tu cuenta principal y las de tus dependientes o amigos por separado.
 - ⚡ **Registro Veloz**: Botones rápidos para misiones diarias (+100 o +150) y alertas (+50).
-- 📅 **Calendario Completo**: Historial visual mes a mes para un control total.
-- ☁️ **Nube Inteligente**: Respaldo automático semanal y actualización de snapshots compartidos sin mover un dedo.
+- 📅 **Calendario Completo**: Historial visual mes a mes para un control total de tus ingresos y gastos.
+- ☁️ **Nube Inteligente con Firebase**: Respaldo automático configurable y actualización de vistas compartidas al instante.
 
 ### 📥 Instalación
-1. Descarga el archivo `STW_V_Planner_v4.2.0.apk` de la raíz de este proyecto.
-2. Abre el archivo y permite la instalación de "Fuentes desconocidas".
-3. **Actualizaciones**: Recibirás un aviso dentro de la app cada vez que haya una versión nueva disponible.
+1. Descarga el archivo APK más reciente ubicado en la raíz de este proyecto o desde la sección de Releases en GitHub.
+2. Abre el archivo en tu dispositivo Android y permite la instalación de "Fuentes desconocidas".
+3. **Actualizaciones**: Recibirás una notificación automática dentro de la app cuando exista una nueva versión disponible en GitHub Releases.
 
 ---
 
 ## 🕹️ Guía de Uso Rápida
 
-### 1. Acceso y Social
-- **Google**: Activa el respaldo en la nube, sincronización y generación de vistas compartidas.
-- **Modo Invitado**: Uso local. Puedes ver cuentas compartidas de otros mediante código.
-- **Vincular Cuentas**: Introduce el código de un amigo una vez y quedará guardado en tu lista principal para acceso rápido.
+### 1. Modos de Acceso
+- **Cuenta de Google**: Desbloquea todas las funciones en la nube: respaldo automático, subir/bajar datos manuales, códigos de transferencia y compartir vistas de solo lectura.
+- **Modo Invitado / Local**: Operación 100% offline en tu dispositivo. Las opciones que requieren la nube de Firebase permanecen bloqueadas de forma segura hasta iniciar sesión.
 
-### 2. Gestión de la Nube (Solo Google)
-- **Subir a la nube**: Respalda tu base de datos completa y actualiza tu vista compartida activa.
-- **Bajar de la nube**: Recupera tus datos en cualquier momento.
-- **Transferencia**: Genera códigos de 10 dígitos para mover toda tu base de datos a otro dispositivo (Caducidad: 1h).
+### 2. Gestión de la Nube (Solo Cuenta de Google)
+- **Respaldo Manual**:
+  - *Subir a la nube*: Guarda tu base de datos completa en Firestore y actualiza tu vista compartida activa.
+  - *Bajar de la nube*: Restaura tu información verificada con hash SHA-256.
+- **Respaldo Automático**:
+  - Activa el interruptor en el menú de la nube y presiona el engranaje ⚙️ para elegir el intervalo que mejor se adapte a ti.
+- **Códigos de Transferencia**:
+  - Genera códigos de 10 dígitos para migrar tu base de datos entre dispositivos de forma segura.
 
 ---
 
@@ -51,9 +54,12 @@ Esta versión introduce un sistema de aprendizaje interactivo que guía a los co
 
 ### 🏗️ Arquitectura
 - **Clean Architecture + MVVM**.
-- **Workers**: WorkManager para respaldos semanales y recordatorios.
-- **Data**: Room (Local), Firestore (Nube), GitHub API (Actualizaciones).
-- **Notificaciones**: Integración con EmailJS para solicitudes de infraestructura.
+- **Workers**: `WorkManager` mediante `ConfigureAutomaticBackupUseCase` para respaldos automáticos periódicos o al inicio de sesión.
+- **Data Layer**:
+  - **Room Database**: Persistencia local.
+  - **Firebase Firestore**: Respaldo en la nube con fragmentación por bloques (chunks) y verificación SHA-256.
+  - **EmailJS API**: Envío de solicitudes de autorización de infraestructura (App Check).
+  - **GitHub API**: Verificación automática de actualizaciones In-App.
 
 ---
 Creado con ❤️ para la comunidad de Fortnite STW.
