@@ -14,14 +14,19 @@ import com.meminzazo.stwvplanner.data.local.entity.TransactionEntity
 import com.meminzazo.stwvplanner.domain.model.TransactionType
 import com.meminzazo.stwvplanner.domain.model.VBucksSource
 import com.meminzazo.stwvplanner.domain.repository.SyncRepository
+import com.meminzazo.stwvplanner.domain.repository.SharedViewRepository
 import kotlinx.coroutines.tasks.await
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
+import java.util.UUID
 import javax.inject.Inject
 
 class SyncRepositoryImpl @Inject constructor(
     private val firestore: FirebaseFirestore,
     private val db: VBucksDatabase,
     private val accountDao: AccountDao,
-    private val transactionDao: TransactionDao
+    private val transactionDao: TransactionDao,
+    private val sharedViewRepository: SharedViewRepository
 ) : SyncRepository {
 
     override suspend fun syncAll(userId: String): Result<Unit> {
@@ -31,19 +36,31 @@ class SyncRepositoryImpl @Inject constructor(
 
     override suspend fun restoreFullDatabase(userId: String): Result<Unit> {
         return try {
-            val snapshot = firestore.collection("users").document(userId).collection("backup").document("latest").get().await()
-            if (!snapshot.exists()) return Result.failure(Exception("Sin respaldo"))
-
-            val chunksCount = snapshot.getLong("totalChunks") ?: 0L
+            val metadata = firestore.collection("users").document(userId).collection("backup").document("latest").get().await()
+            if (!metadata.exists()) return Result.failure(Exception("Sin respaldo"))
+            val backupId = metadata.getString("backupId")
+            val chunksCount = (metadata.getLong("totalChunks") ?: 0L).toInt()
             val fullJson = if (chunksCount > 0) {
-                val sb = StringBuilder()
-                for (i in 0 until chunksCount.toInt()) {
-                    val chunk = firestore.collection("users").document(userId).collection("backup_chunks").document("chunk_$i").get().await()
-                    sb.append(chunk.getString("data") ?: "")
+                buildString {
+                    for (i in 0 until chunksCount) {
+                        val chunkId = if (backupId != null) "${backupId}_$i" else "chunk_$i"
+                        val chunk = firestore.collection("users").document(userId)
+                            .collection("backup_chunks").document(chunkId).get().await()
+                        if (!chunk.exists()) throw IllegalStateException("Falta el fragmento $i")
+                        append(chunk.getString("data") ?: throw IllegalStateException("Fragmento vacío"))
+                    }
                 }
-                sb.toString()
             } else {
-                snapshot.getString("data") ?: return Result.failure(Exception("Vacío"))
+                metadata.getString("data") ?: return Result.failure(Exception("Vacío"))
+            }
+            val fullBytes = fullJson.toByteArray(StandardCharsets.UTF_8)
+            val expectedLength = metadata.getLong("byteLength")
+            val expectedHash = metadata.getString("sha256")
+            if (expectedLength != null && expectedLength != fullBytes.size.toLong()) {
+                return Result.failure(Exception("Respaldo incompleto o alterado"))
+            }
+            if (expectedHash != null && expectedHash != sha256(fullBytes)) {
+                return Result.failure(Exception("Respaldo incompleto o alterado"))
             }
             restoreFromJson(fullJson)
         } catch (e: Exception) {
@@ -54,26 +71,52 @@ class SyncRepositoryImpl @Inject constructor(
     override suspend fun backupFullDatabase(userId: String): Result<Unit> {
         return try {
             val json = backupToJson()
-
-            // Protección de cuota: Límite de 2MB por respaldo
-            if (json.length > 2_000_000) {
+            val bytes = json.toByteArray(StandardCharsets.UTF_8)
+            if (bytes.size > MAX_BACKUP_BYTES) {
                 return Result.failure(Exception("Respaldo demasiado grande (>2MB). Elimina registros antiguos."))
             }
-
-            val chunkSize = 500_000
-            if (json.length > chunkSize) {
-                val chunks = json.chunked(chunkSize)
-                chunks.forEachIndexed { i, c ->
-                    firestore.collection("users").document(userId).collection("backup_chunks").document("chunk_$i").set(mapOf("data" to c)).await()
-                }
-                firestore.collection("users").document(userId).collection("backup").document("latest").set(mapOf("totalChunks" to chunks.size, "lastUpdated" to System.currentTimeMillis())).await()
+            val backupId = UUID.randomUUID().toString()
+            val backupRef = firestore.collection("users").document(userId).collection("backup")
+            val chunkRef = firestore.collection("users").document(userId).collection("backup_chunks")
+            val previousBackupId = backupRef.document("latest").get().await()
+                .getString("backupId")
+            val chunks = json.chunked(CHUNK_CHAR_SIZE)
+            val metadata = mapOf(
+                "backupId" to backupId,
+                "totalChunks" to if (chunks.size == 1) 0 else chunks.size,
+                "byteLength" to bytes.size,
+                "sha256" to sha256(bytes),
+                "lastUpdated" to System.currentTimeMillis()
+            )
+            if (chunks.size == 1) {
+                backupRef.document("staging_$backupId").set(metadata + ("data" to json)).await()
             } else {
-                firestore.collection("users").document(userId).collection("backup").document("latest").set(mapOf("data" to json, "totalChunks" to 0, "lastUpdated" to System.currentTimeMillis())).await()
+                chunks.forEachIndexed { i, chunk ->
+                    chunkRef.document("${backupId}_$i").set(mapOf("backupId" to backupId, "index" to i, "data" to chunk)).await()
+                }
+                backupRef.document("staging_$backupId").set(metadata).await()
+            }
+            backupRef.document("latest").set(metadata + if (chunks.size == 1) mapOf("data" to json) else emptyMap()).await()
+            sharedViewRepository.refreshOwnedSharedViews(userId)
+                .onFailure { Log.w("SyncRepository", "Respaldo guardado, pero no se actualizaron las vistas compartidas", it) }
+            backupRef.document("staging_$backupId").delete().await()
+            if (previousBackupId != null && previousBackupId != backupId) {
+                val oldChunks = chunkRef.whereEqualTo("backupId", previousBackupId).get().await()
+                oldChunks.documents.forEach { it.reference.delete().await() }
             }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
+        .digest(bytes)
+        .joinToString("") { "%02x".format(it) }
+
+    private companion object {
+        const val MAX_BACKUP_BYTES = 2_000_000
+        const val CHUNK_CHAR_SIZE = 450_000
     }
 
     override suspend fun generateTransferCode(userId: String): Result<String> {
@@ -154,6 +197,7 @@ class SyncRepositoryImpl @Inject constructor(
         Log.d("SyncRepository", "Iniciando restoreFromJson")
         return try {
             val backup = Gson().fromJson(json, FullBackup::class.java)
+            validateBackup(backup)
             Log.d("SyncRepository", "Deserealización exitosa: ${backup.accounts.size} cuentas, ${backup.transactions.size} transacciones")
             
             // withTransaction: si algo falla a medio proceso (archivo corrupto, entidad inválida),
@@ -171,6 +215,23 @@ class SyncRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             Log.e("SyncRepository", "Error en restoreFromJson: ${e.message}", e)
             Result.failure(e)
+        }
+    }
+
+    private fun validateBackup(backup: FullBackup) {
+        require(backup.accounts.isNotEmpty() || backup.transactions.isEmpty()) { "Respaldo sin cuentas" }
+        val accountIds = backup.accounts.map { it.id }.toSet()
+        val accountSyncIds = backup.accounts.map { it.syncId }.toSet()
+        require(accountSyncIds.size == backup.accounts.size) { "syncId de cuenta duplicado" }
+        require(backup.accounts.none { it.name.isBlank() || it.syncId.isBlank() }) { "Cuenta inválida" }
+        require(backup.transactions.all { transaction ->
+            transaction.syncId.isNotBlank() &&
+                (transaction.accountId in accountIds || transaction.accountSyncId in accountSyncIds) &&
+                transaction.amount >= 0 &&
+                transaction.description.isNotBlank()
+        }) { "Transacción inválida o sin cuenta asociada" }
+        require(backup.transactions.map { it.syncId }.toSet().size == backup.transactions.size) {
+            "syncId de transacción duplicado"
         }
     }
 

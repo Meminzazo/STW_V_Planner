@@ -14,7 +14,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
-import androidx.compose.material.icons.automirrored.filled.Help
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.PlayArrow
@@ -56,17 +55,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.unit.toSize
+import java.text.DateFormat
+import java.util.Date
 import androidx.navigation.NavController
-import com.meminzazo.stwvplanner.presentation.common.TutorialViewModel
-import com.meminzazo.stwvplanner.presentation.common.TutorialStep
-import com.meminzazo.stwvplanner.presentation.common.GuidedTutorialOverlay
 import com.meminzazo.stwvplanner.domain.model.SharedLink
 import com.meminzazo.stwvplanner.presentation.navigation.Screen
 import com.meminzazo.stwvplanner.presentation.dashboard.DashboardViewModel
+import com.meminzazo.stwvplanner.domain.model.BackupFrequency
+import com.meminzazo.stwvplanner.domain.usecase.ConfigureAutomaticBackupUseCase
 import com.meminzazo.stwvplanner.presentation.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -181,16 +177,25 @@ private fun UpdateDialog(
     }
 }
 
+private fun frequencyLabel(frequency: BackupFrequency) = when (frequency) {
+    BackupFrequency.ON_APP_OPEN -> "Al abrir la app (máx. 2/día)"
+    BackupFrequency.DAILY -> "Diaria"
+    BackupFrequency.WEEKLY -> "Semanal"
+    BackupFrequency.MONTHLY -> "Mensual"
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AccountSelectionScreen(
     viewModel: DashboardViewModel = hiltViewModel(),
-    tutorialViewModel: TutorialViewModel = hiltViewModel(),
     onAccountSelected: (Long) -> Unit,
     navController: NavController,
     snackbarHostState: SnackbarHostState
 ) {
     val context = LocalContext.current
+    val backupScheduler = remember { ConfigureAutomaticBackupUseCase(context) }
+    var automaticBackupEnabled by remember { mutableStateOf(backupScheduler.enabled()) }
+    var backupFrequency by remember { mutableStateOf(backupScheduler.frequency()) }
 
     val accounts by viewModel.accounts.collectAsState()
     val deletedAccounts by viewModel.deletedAccounts.collectAsState()
@@ -199,14 +204,13 @@ fun AccountSelectionScreen(
     val isLocalMode by viewModel.isLocalMode.collectAsState()
     val isGuestBannerMinimized by viewModel.isGuestBannerMinimized.collectAsState()
 
-    val tutorialStep by tutorialViewModel.currentStep.collectAsState()
-    val highlightRect by tutorialViewModel.highlightRect.collectAsState()
-
     var showAddAccountDialog by remember { mutableStateOf(false) }
     var showRestoreConfirm by remember { mutableStateOf(false) }
     var showCloudMenu by remember { mutableStateOf(false) }
-    var showCloudOptions by remember { mutableStateOf(false) }
-    var showSettingsMenu by remember { mutableStateOf(false) }
+    var showCloudBackupDialog by remember { mutableStateOf(false) }
+    var showAutomaticBackupDialog by remember { mutableStateOf(false) }
+    var showTransferDialog by remember { mutableStateOf(false) }
+    var showTransferImportConfirm by remember { mutableStateOf<String?>(null) }
     var showExportOptionsDialog by remember { mutableStateOf(false) }
     var showTransferCodeDialog by remember { mutableStateOf<String?>(null) }
     var showImportCodeDialog by remember { mutableStateOf(false) }
@@ -231,7 +235,6 @@ fun AccountSelectionScreen(
     LaunchedEffect(Unit) {
         viewModel.cleanupOldFiles(context)
         viewModel.checkForUpdates()
-        tutorialViewModel.checkAndStartDashboardTutorial()
         viewModel.uiEvent.collect { event ->
             when (event) {
                 is DashboardViewModel.UiEvent.ShowError -> {
@@ -264,9 +267,9 @@ fun AccountSelectionScreen(
                 is DashboardViewModel.UiEvent.ShowInfraApprovalDialog -> {
                     showInfraApprovalDialog = true
                 }
-                is DashboardViewModel.UiEvent.NavigateToOnboarding -> {
-                    navController.navigate(Screen.Onboarding.route)
-                }
+//                is DashboardViewModel.UiEvent.NavigateToOnboarding -> {
+//                    navController.navigate(Screen.Onboarding.route)
+//                }
             }
         }
     }
@@ -302,7 +305,11 @@ fun AccountSelectionScreen(
         )
     }
 
-    if (showReadOnlyCodeDialog) {
+    LaunchedEffect(isLocalMode) {
+        if (isLocalMode) showReadOnlyCodeDialog = false
+    }
+
+    if (showReadOnlyCodeDialog && !isLocalMode) {
         ReadOnlyCodeDialog(
             onDismiss = { showReadOnlyCodeDialog = false },
             onConfirm = { code ->
@@ -332,11 +339,107 @@ fun AccountSelectionScreen(
         )
     }
 
+    if (showCloudBackupDialog) {
+        AlertDialog(
+            onDismissRequest = { showCloudBackupDialog = false },
+            title = { Text("Respaldo en la nube", fontWeight = FontWeight.Bold) },
+            text = { Text("Guarda una copia completa de las cuentas y transacciones de este dispositivo, o restaura la última copia disponible.") },
+            confirmButton = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            viewModel.onBackupClick()
+                            showCloudBackupDialog = false
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = StormCyan)
+                    ) { Text("Subir respaldo ahora", color = StormBackground, fontWeight = FontWeight.Bold) }
+                    OutlinedButton(
+                        onClick = {
+                            showCloudBackupDialog = false
+                            showRestoreConfirm = true
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Restaurar desde la nube") }
+                    TextButton(onClick = { showCloudBackupDialog = false }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Cancelar")
+                    }
+                }
+            }
+        )
+    }
+
+    if (showAutomaticBackupDialog) {
+        AlertDialog(
+            onDismissRequest = { showAutomaticBackupDialog = false },
+            title = { Text("Respaldo automático", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Activar respaldo automático", modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = automaticBackupEnabled,
+                            onCheckedChange = {
+                                automaticBackupEnabled = it
+                                backupScheduler.setEnabled(it, backupFrequency)
+                            }
+                        )
+                    }
+                    BackupFrequency.values().forEach { frequency ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                backupFrequency = frequency
+                                if (automaticBackupEnabled) backupScheduler.setEnabled(true, frequency)
+                            },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = backupFrequency == frequency, onClick = null)
+                            Text(frequencyLabel(frequency))
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAutomaticBackupDialog = false }) { Text("Listo") }
+            }
+        )
+    }
+
+    if (showTransferDialog) {
+        AlertDialog(
+            onDismissRequest = { showTransferDialog = false },
+            title = { Text("Transferir datos", fontWeight = FontWeight.Bold) },
+            text = { Text("Genera un código temporal para mover una copia completa de tus datos a otro dispositivo, o importa uno recibido.") },
+            confirmButton = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            viewModel.onGenerateTransferCode()
+                            showTransferDialog = false
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = StormCyan)
+                    ) { Text("Generar código", color = StormBackground, fontWeight = FontWeight.Bold) }
+                    OutlinedButton(
+                        onClick = {
+                            viewModel.onStartImportCode()
+                            showTransferDialog = false
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Importar con código") }
+                    TextButton(onClick = { showTransferDialog = false }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Cancelar")
+                    }
+                }
+            }
+        )
+    }
+
     if (showRestoreConfirm) {
         AlertDialog(
             onDismissRequest = { showRestoreConfirm = false },
             title = { Text("Restaurar Respaldo", fontWeight = FontWeight.Bold) },
-            text = { Text("¿Estás seguro? Esto reemplazará todos tus datos locales por la copia guardada en la nube.") },
+            text = { Text("La copia de la nube reemplazará todas las cuentas y transacciones guardadas en este dispositivo. Esta acción no se puede deshacer.") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -344,11 +447,29 @@ fun AccountSelectionScreen(
                         showRestoreConfirm = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = StormCyan)
-                ) { Text("Restaurar", color = StormBackground, fontWeight = FontWeight.Bold) }
+                ) { Text("Reemplazar datos", color = StormBackground, fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
                 TextButton(onClick = { showRestoreConfirm = false }) { Text("Cancelar") }
             }
+        )
+    }
+
+    if (showTransferImportConfirm != null) {
+        AlertDialog(
+            onDismissRequest = { showTransferImportConfirm = null },
+            title = { Text("Importar transferencia", fontWeight = FontWeight.Bold) },
+            text = { Text("Los datos del código reemplazarán todas las cuentas y transacciones de este dispositivo. Esta acción no se puede deshacer.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.onImportWithCode(showTransferImportConfirm!!)
+                        showTransferImportConfirm = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = StormCyan)
+                ) { Text("Reemplazar datos", color = StormBackground, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = { TextButton(onClick = { showTransferImportConfirm = null }) { Text("Cancelar") } }
         )
     }
 
@@ -358,7 +479,7 @@ fun AccountSelectionScreen(
             title = { Text("Código de Transferencia", fontWeight = FontWeight.Bold) },
             text = {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Comparte este código de 10 dígitos. Validez: 24 horas.", style = MaterialTheme.typography.bodyMedium)
+                    Text("Comparte este código de 10 dígitos. Validez: 1 hora.", style = MaterialTheme.typography.bodyMedium)
                     Spacer(modifier = Modifier.height(16.dp))
                     Surface(
                         color = StormCardElevated,
@@ -405,7 +526,7 @@ fun AccountSelectionScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.onImportWithCode(code)
+                        showTransferImportConfirm = code
                         showImportCodeDialog = false
                     },
                     enabled = code.length == 10,
@@ -549,58 +670,8 @@ fun AccountSelectionScreen(
                             color = StormCyan
                         )
                     } else {
-                        Box(modifier = Modifier.onGloballyPositioned { layoutCoordinates ->
-                            if (tutorialStep == TutorialStep.DASHBOARD_SETTINGS) {
-                                val position = layoutCoordinates.positionInRoot()
-                                tutorialViewModel.setHighlightRect(Rect(position, layoutCoordinates.size.toSize()))
-                            }
-                        }) {
-                            IconButton(onClick = {
-                                showSettingsMenu = true
-                            }) {
-                                Icon(Icons.Default.Settings, contentDescription = "Ajustes", tint = StormTextMuted)
-                            }
-                            DropdownMenu(
-                                expanded = showSettingsMenu,
-                                onDismissRequest = { showSettingsMenu = false },
-                                containerColor = StormCardElevated,
-                                border = BorderStroke(1.dp, StormBorder)
-                            ) {
-                                Text(
-                                    "OPCIONES",
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = StormCyan,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Ver tutorial de nuevo", color = StormTextMain) },
-                                    onClick = {
-                                        showSettingsMenu = false
-                                        viewModel.resetOnboarding()
-                                    },
-                                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.Help, contentDescription = null, tint = StormCyan) }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Iniciar guía de campo", color = StormTextMain) },
-                                    onClick = {
-                                        showSettingsMenu = false
-                                        tutorialViewModel.startDashboardTutorial()
-                                    },
-                                    leadingIcon = { Icon(Icons.Default.PlayArrow, contentDescription = null, tint = StormCyan) }
-                                )
-                            }
-                        }
-                        Box(modifier = Modifier.onGloballyPositioned { layoutCoordinates ->
-                            if (tutorialStep == TutorialStep.DASHBOARD_CLOUD_MENU) {
-                                val position = layoutCoordinates.positionInRoot()
-                                tutorialViewModel.setHighlightRect(Rect(position, layoutCoordinates.size.toSize()))
-                            }
-                        }) {
-                            IconButton(onClick = {
-                                showCloudMenu = true
-                                showCloudOptions = false
-                            }) {
+                        Box {
+                            IconButton(onClick = { showCloudMenu = true }) {
                                 Icon(Icons.Default.Cloud, contentDescription = "Gestión de Datos", tint = StormCyan)
                             }
                             DropdownMenu(
@@ -651,63 +722,40 @@ fun AccountSelectionScreen(
 
                                 HorizontalDivider(color = StormBorder)
 
-                                DropdownMenuItem(
-                                    text = {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                "NUBE FIREBASE",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = if (isLocalMode) StormTextMuted else StormAmber,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            Text(if (showCloudOptions) "▲" else "▼", fontSize = 10.sp, color = StormTextMuted)
-                                        }
-                                    },
-                                    onClick = { showCloudOptions = !showCloudOptions }
+                                Text(
+                                    "NUBE FIREBASE",
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (isLocalMode) StormTextMuted else StormAmber,
+                                    fontWeight = FontWeight.Bold
                                 )
-
-                                if (showCloudOptions) {
-                                    DropdownMenuItem(
-                                        text = { Text("Subir a la nube", color = if (isLocalMode) StormTextMuted else StormTextMain) },
-                                        onClick = {
-                                            viewModel.onBackupClick()
-                                            showCloudMenu = false
-                                        },
-                                        leadingIcon = { Icon(Icons.Default.CloudUpload, contentDescription = null, tint = if (isLocalMode) StormTextMuted else StormAmber) },
-                                        enabled = !isLocalMode
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Bajar de la nube", color = if (isLocalMode) StormTextMuted else StormTextMain) },
-                                        onClick = {
-                                            showRestoreConfirm = true
-                                            showCloudMenu = false
-                                        },
-                                        leadingIcon = { Icon(Icons.Default.CloudDownload, contentDescription = null, tint = if (isLocalMode) StormTextMuted else StormAmber) },
-                                        enabled = !isLocalMode
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Generar código (10 dígitos)", color = if (isLocalMode) StormTextMuted else StormTextMain) },
-                                        onClick = {
-                                            viewModel.onGenerateTransferCode()
-                                            showCloudMenu = false
-                                        },
-                                        leadingIcon = { Icon(Icons.Default.Key, contentDescription = null, tint = if (isLocalMode) StormTextMuted else StormAmber) },
-                                        enabled = !isLocalMode
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Importar con código", color = if (isLocalMode) StormTextMuted else StormTextMain) },
-                                        onClick = {
-                                            viewModel.onStartImportCode()
-                                            showCloudMenu = false
-                                        },
-                                        leadingIcon = { Icon(Icons.Default.Key, contentDescription = null, tint = if (isLocalMode) StormTextMuted else StormAmber) },
-                                        enabled = !isLocalMode
-                                    )
-                                }
+                                DropdownMenuItem(
+                                    text = { Text("Respaldo en la nube") },
+                                    onClick = {
+                                        showCloudMenu = false
+                                        showCloudBackupDialog = true
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.Cloud, contentDescription = null, tint = StormAmber) },
+                                    enabled = !isLocalMode
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Respaldo automático") },
+                                    onClick = {
+                                        showCloudMenu = false
+                                        showAutomaticBackupDialog = true
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.Restore, contentDescription = null, tint = StormAmber) },
+                                    enabled = !isLocalMode
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Transferir datos") },
+                                    onClick = {
+                                        showCloudMenu = false
+                                        showTransferDialog = true
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.Key, contentDescription = null, tint = StormAmber) },
+                                    enabled = !isLocalMode
+                                )
                             }
                         }
                     }
@@ -723,12 +771,7 @@ fun AccountSelectionScreen(
                 containerColor = StormCyan,
                 contentColor = StormBackground,
                 shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.onGloballyPositioned { layoutCoordinates ->
-                    if (tutorialStep == TutorialStep.DASHBOARD_ADD_ACCOUNT) {
-                        val position = layoutCoordinates.positionInRoot()
-                        tutorialViewModel.setHighlightRect(Rect(position, layoutCoordinates.size.toSize()))
-                    }
-                }
+                modifier = Modifier
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Añadir Cuenta")
             }
@@ -843,7 +886,7 @@ fun AccountSelectionScreen(
                 )
             }
 
-            if (sharedLinks.isNotEmpty()) {
+            if (!isLocalMode && sharedLinks.isNotEmpty()) {
                 item {
                     Spacer(Modifier.height(16.dp))
                     Text(
@@ -862,7 +905,7 @@ fun AccountSelectionScreen(
                 }
             }
 
-            item {
+            if (!isLocalMode) item {
                 Spacer(Modifier.height(16.dp))
                 Card(
                     modifier = Modifier
@@ -880,7 +923,7 @@ fun AccountSelectionScreen(
                         Spacer(Modifier.width(16.dp))
                         Column {
                             Text("VER CUENTA COMPARTIDA", style = MaterialTheme.typography.labelSmall, color = StormCyan, fontWeight = FontWeight.Bold)
-                            Text("Introduce un código de 6 dígitos", style = MaterialTheme.typography.bodySmall, color = StormTextMuted)
+                            Text("Introduce un código de 10 caracteres", style = MaterialTheme.typography.bodySmall, color = StormTextMuted)
                         }
                     }
                 }
@@ -922,25 +965,6 @@ fun AccountSelectionScreen(
             }
         }
 
-        // --- TUTORIAL OVERLAY ---
-        if (tutorialStep != TutorialStep.NONE && tutorialStep.name.startsWith("DASHBOARD")) {
-            val (title, desc) = when (tutorialStep) {
-                TutorialStep.DASHBOARD_WELCOME -> "¡SISTEMA EN LÍNEA!" to "Bienvenido Comandante. Este es su centro de mando para la gestión de suministros V."
-                TutorialStep.DASHBOARD_ADD_ACCOUNT -> "REGISTRO DE TROPAS" to "Pulse este botón (+) para registrar un nuevo perfil de gestión. Puede añadir sus cuentas principales o de colaboradores."
-                TutorialStep.DASHBOARD_CLOUD_MENU -> "BÚNKER DE DATOS" to "Utilice este icono de NUBE para realizar respaldos manuales en Firebase o solicitar autorizaciones de seguridad (App Check)."
-                TutorialStep.DASHBOARD_SETTINGS -> "CONFIGURACIÓN DEL HUD" to "Desde aquí puede repetir esta guía o ver la introducción visual del sistema en cualquier momento."
-                else -> "" to ""
-            }
-
-            GuidedTutorialOverlay(
-                highlightRect = highlightRect,
-                title = title,
-                description = desc,
-                buttonText = if (tutorialStep == TutorialStep.DASHBOARD_SETTINGS) "COMPLETAR" else "ENTENDIDO",
-                onNext = { tutorialViewModel.nextStep() },
-                onSkip = { tutorialViewModel.skipTutorial() }
-            )
-        }
     }
 }
 
@@ -1037,7 +1061,12 @@ fun SharedLinkCardItem(
                         )
                     }
                 }
-                Text("Dueño: ${link.ownerName ?: "Invitado"}", style = MaterialTheme.typography.bodySmall, color = StormTextMuted)
+                Text("Dueño: ${link.ownerName ?: "No disponible"}", style = MaterialTheme.typography.bodySmall, color = StormTextMuted)
+                Text(
+                    if (link.snapshotUpdatedAt > 0) "Actualizado el ${DateFormat.getDateTimeInstance().format(Date(link.snapshotUpdatedAt))}" else "Actualizado: fecha no disponible",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = StormTextMuted
+                )
             }
             IconButton(onClick = { showDeleteConfirm = true }, modifier = Modifier.size(32.dp)) {
                 Icon(Icons.Default.LinkOff, contentDescription = "Eliminar vínculo", tint = StormTextMuted, modifier = Modifier.size(18.dp))
@@ -1102,22 +1131,6 @@ fun AccountCardItem(
                         fontWeight = FontWeight.Black,
                         color = StormTextMain
                     )
-                    if (account.isMain) {
-                        Spacer(Modifier.width(8.dp))
-                        Surface(
-                            color = StormCyan.copy(alpha = 0.15f),
-                            shape = RoundedCornerShape(6.dp),
-                            border = BorderStroke(0.5.dp, StormCyan.copy(alpha = 0.4f))
-                        ) {
-                            Text(
-                                text = "PRINCIPAL",
-                                fontSize = 9.sp,
-                                color = StormCyan,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
                 }
 
                 Spacer(Modifier.height(6.dp))

@@ -17,14 +17,11 @@ android {
         applicationId = "com.meminzazo.stwvplanner"
         minSdk = 28
         targetSdk = 36
-        versionCode = 7
-        versionName = "4.2.0"
+        versionCode = 9
+        versionName = "4.3.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
-        buildConfigField("String", "GITHUB_REPO_OWNER", "\"Meminzazo\"")
-        buildConfigField("String", "GITHUB_REPO_NAME", "\"STW_V_Planner\"")
-
         // EmailJS Configuration from local.properties
         val localProperties = Properties()
         val localPropertiesFile = rootProject.file("local.properties")
@@ -35,7 +32,6 @@ android {
         buildConfigField("String", "EMAILJS_SERVICE_ID", "\"${localProperties.getProperty("emailjs.service.id") ?: ""}\"")
         buildConfigField("String", "EMAILJS_TEMPLATE_ID", "\"${localProperties.getProperty("emailjs.template.id") ?: ""}\"")
         buildConfigField("String", "EMAILJS_PUBLIC_KEY", "\"${localProperties.getProperty("emailjs.public.key") ?: ""}\"")
-        buildConfigField("String", "EMAILJS_PRIVATE_KEY", "\"${localProperties.getProperty("emailjs.private.key") ?: ""}\"")
     }
 
     buildTypes {
@@ -60,7 +56,6 @@ android {
 dependencies {
     // Core
     implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.appcompat)
     implementation(libs.material)
 
     // Compose

@@ -210,12 +210,14 @@ class VBucksRepositoryImpl @Inject constructor(
 
     override fun getSharedLinks(): Flow<List<SharedLink>> {
         return sharedLinkDao.getAllSharedLinks().map { entities ->
-            entities.map { SharedLink(it.code, it.accountName, it.ownerName, it.lastViewed) }
+            entities.map { SharedLink(it.code, it.accountName, it.ownerName, it.lastViewed, it.snapshotUpdatedAt) }
         }
     }
 
     override suspend fun saveSharedLink(link: SharedLink) {
-        sharedLinkDao.insertSharedLink(SharedLinkEntity(link.code, link.accountName, link.ownerName, link.lastViewed))
+        sharedLinkDao.insertSharedLink(
+            SharedLinkEntity(link.code, link.accountName, link.ownerName, link.lastViewed, link.snapshotUpdatedAt)
+        )
     }
 
     override suspend fun deleteSharedLink(code: String) {

@@ -21,6 +21,7 @@ fun LoginScreen(
 ) {
     val context = LocalContext.current
     val isLoading by viewModel.isLoading.collectAsState()
+    val cloudAccessGranted by viewModel.cloudAccessGranted.collectAsState()
 
     LaunchedEffect(Unit) {
         viewModel.uiEvent.collect { event ->
@@ -78,7 +79,7 @@ fun LoginScreen(
             if (isLoading) {
                 CircularProgressIndicator(color = StormCyan)
             } else {
-                Button(
+                if (cloudAccessGranted) Button(
                     onClick = { viewModel.onSignInWithGoogle(context) },
                     modifier = Modifier
                         .fillMaxWidth()

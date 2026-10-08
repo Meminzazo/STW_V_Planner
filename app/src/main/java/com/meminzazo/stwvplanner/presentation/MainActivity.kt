@@ -10,7 +10,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -28,7 +27,6 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.meminzazo.stwvplanner.presentation.auth.AccountSelectionScreen
 import com.meminzazo.stwvplanner.presentation.auth.LoginScreen
-import com.meminzazo.stwvplanner.presentation.auth.OnboardingScreen
 import com.meminzazo.stwvplanner.presentation.detail.AccountDetailScreen
 import com.meminzazo.stwvplanner.presentation.expense.AddExpenseScreen
 import com.meminzazo.stwvplanner.presentation.history.HistoryScreen
@@ -47,7 +45,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val mainViewModel: MainViewModel = hiltViewModel()
             val currentUser by mainViewModel.currentUser.collectAsState()
-            val isOnboardingCompleted by mainViewModel.isOnboardingCompleted.collectAsState()
+            val isLocalMode by mainViewModel.isLocalMode.collectAsState()
             val snackbarHostState = remember { SnackbarHostState() }
             val navController = rememberNavController()
 
@@ -79,11 +77,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     snackbarHost = { SnackbarHost(snackbarHostState) }
                 ) { innerPadding ->
-                    if (!isOnboardingCompleted) {
-                        OnboardingScreen(
-                            onFinished = { /* State updates automatically */ }
-                        )
-                    } else if (currentUser == null) {
+                    if (currentUser == null) {
                         LoginScreen(snackbarHostState = snackbarHostState)
                     } else {
                         NavHost(
@@ -97,11 +91,6 @@ class MainActivity : ComponentActivity() {
                                     },
                                     navController = navController,
                                     snackbarHostState = snackbarHostState
-                                )
-                            }
-                            composable(Screen.Onboarding.route) {
-                                OnboardingScreen(
-                                    onFinished = { navController.popBackStack() }
                                 )
                             }
                             composable(
@@ -158,11 +147,15 @@ class MainActivity : ComponentActivity() {
                                     navArgument("code") { type = NavType.StringType }
                                 )
                             ) { backStackEntry ->
-                                val code = backStackEntry.arguments?.getString("code") ?: ""
-                                ReadOnlyScreen(
-                                    code = code,
-                                    onPopBackStack = { navController.popBackStack() }
-                                )
+                                if (isLocalMode) {
+                                    LaunchedEffect(Unit) { navController.popBackStack() }
+                                } else {
+                                    val code = backStackEntry.arguments?.getString("code") ?: ""
+                                    ReadOnlyScreen(
+                                        code = code,
+                                        onPopBackStack = { navController.popBackStack() }
+                                    )
+                                }
                             }
                             composable(Screen.InfrastructureRequest.route) {
                                 InfrastructureRequestScreen(

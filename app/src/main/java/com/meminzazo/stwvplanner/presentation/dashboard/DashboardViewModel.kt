@@ -10,7 +10,6 @@ import androidx.activity.ComponentActivity
 import androidx.core.content.FileProvider
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
-import androidx.credentials.GetCredentialResponse
 import androidx.credentials.exceptions.GetCredentialException
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -26,11 +25,11 @@ import com.meminzazo.stwvplanner.domain.model.UpdateCheckResult
 import com.meminzazo.stwvplanner.domain.model.RequestStatus
 import com.meminzazo.stwvplanner.domain.repository.AuthRepository
 import com.meminzazo.stwvplanner.domain.repository.InfrastructureRequestRepository
-import com.meminzazo.stwvplanner.domain.repository.SharedViewRepository
 import com.meminzazo.stwvplanner.domain.repository.SyncRepository
 import com.meminzazo.stwvplanner.domain.repository.UpdateRepository
 import com.meminzazo.stwvplanner.domain.repository.VBucksRepository
 import com.meminzazo.stwvplanner.domain.usecase.AddAccountUseCase
+import com.meminzazo.stwvplanner.domain.usecase.BackupCoordinator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -49,7 +48,6 @@ class DashboardViewModel @Inject constructor(
     private val repository: VBucksRepository,
     private val syncRepository: SyncRepository,
     private val authRepository: AuthRepository,
-    private val sharedViewRepository: SharedViewRepository,
     private val infraRepository: InfrastructureRequestRepository,
     private val addAccountUseCase: AddAccountUseCase,
     private val updateRepository: UpdateRepository,
@@ -65,14 +63,16 @@ class DashboardViewModel @Inject constructor(
     val allAccounts: StateFlow<List<Account>> = repository.getAccounts()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val sharedLinks: StateFlow<List<SharedLink>> = repository.getSharedLinks()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val isLocalMode: StateFlow<Boolean> = authRepository.isUserLocal
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val sharedLinks: StateFlow<List<SharedLink>> = isLocalMode.flatMapLatest { local ->
+        if (local) flowOf(emptyList()) else repository.getSharedLinks()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading = _isLoading.asStateFlow()
-
-    val isLocalMode: StateFlow<Boolean> = authRepository.isUserLocal
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val isGuestBannerMinimized: StateFlow<Boolean> = authRepository.isGuestBannerMinimized()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
@@ -84,6 +84,7 @@ class DashboardViewModel @Inject constructor(
     private var lockoutUntil = 0L
 
     private var pendingBackupJson: String? = null
+    private var backupInProgress = false
 
     private var versionClickCount = 0
     private var lastVersionClickTime = 0L
@@ -103,15 +104,10 @@ class DashboardViewModel @Inject constructor(
                 if (user != null && !isLocalMode.value) {
                     // Si el usuario está logueado con Google (no es local), registramos su éxito
                     val debugToken = authRepository.getAppCheckDebugToken()
-                    infraRepository.recordAuthorizedUser(user, debugToken)
+                    infraRepository.recordAuthorizedUser(user, debugToken, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)
                 }
             }
         }
-    }
-
-    private fun observeInfrastructureApproval() {
-        // En el nuevo flujo EmailJS-only, el usuario solo debe intentar loguearse con Google
-        // una vez que el administrador le avise o pasen 24h.
     }
 
     /**
@@ -140,9 +136,9 @@ class DashboardViewModel @Inject constructor(
     }
 
     private fun isCloudActionAllowed(isImport: Boolean = false, updateLastActionTime: Boolean = true): Boolean {
-        if (isLocalMode.value && !isImport) {
-            Log.w("DashboardVM", "Acción de nube bloqueada: Modo Local activo")
-            viewModelScope.launch { _uiEvent.emit(UiEvent.ShowError("La nube está deshabilitada en modo local")) }
+        if (isLocalMode.value || !infraRepository.isAccessAuthorized()) {
+            Log.w("DashboardVM", "Acción de nube bloqueada: acceso no autorizado")
+            viewModelScope.launch { _uiEvent.emit(UiEvent.ShowError("Solicita y verifica el acceso a la nube antes de usar esta función")) }
             return false
         }
         val now = System.currentTimeMillis()
@@ -186,82 +182,34 @@ class DashboardViewModel @Inject constructor(
     }
 
     fun onBackupClick() {
+        if (backupInProgress) {
+            viewModelScope.launch { _uiEvent.emit(UiEvent.ShowError("Ya hay un respaldo en curso")) }
+            return
+        }
         if (!isCloudActionAllowed()) return
+        backupInProgress = true
         viewModelScope.launch {
             _isLoading.value = true
-            val user = authRepository.currentUser.first()
-            if (user != null) {
-                val result = syncRepository.backupFullDatabase(user.id)
-                if (result.isSuccess) {
+            try {
+                BackupCoordinator.run {
+                    val user = authRepository.currentUser.first() ?: return@run
+                    val result = syncRepository.backupFullDatabase(user.id)
+                    if (result.isFailure) {
+                        _uiEvent.emit(UiEvent.ShowError(result.exceptionOrNull()?.message ?: "Error al respaldar"))
+                        return@run
+                    }
                     _uiEvent.emit(UiEvent.ShowError("Respaldo total guardado"))
-                    
-                    // Actualizar vista compartida automáticamente para la cuenta específica compartida
-                    val mainAccounts = accounts.value.ifEmpty { 
-                        repository.getMainAccounts().firstOrNull() ?: emptyList() 
-                    }
-                    
-                    val sharedAccountId = getSavedSharedAccountId()
-                    val accountToUpdate = mainAccounts.find { it.id == sharedAccountId }
-                        ?: mainAccounts.find { it.isMain }
-                        ?: mainAccounts.firstOrNull()
-
-                    if (accountToUpdate != null) {
-                        val storedCode = getSavedShareCode()
-                        if (storedCode != null) {
-                            Log.d("DashboardVM", "Sincronizando vista compartida de '${accountToUpdate.name}': $storedCode")
-                            sharedViewRepository.createSharedView(accountToUpdate.id, storedCode).onSuccess {
-                                Log.d("DashboardVM", "Vista compartida actualizada con éxito")
-                            }.onFailure { e ->
-                                Log.e("DashboardVM", "Error al sincronizar vista compartida: ${e.message}")
-                            }
-                        } else {
-                            Log.d("DashboardVM", "No hay código de vista compartida activo para sincronizar")
-                        }
-                    } else {
-                        Log.w("DashboardVM", "No se encontró cuenta para sincronizar vista compartida")
-                    }
-                } else {
-                    _uiEvent.emit(UiEvent.ShowError(result.exceptionOrNull()?.message ?: "Error al respaldar"))
                 }
+            } finally {
+                _isLoading.value = false
+                backupInProgress = false
             }
-            _isLoading.value = false
         }
-    }
-
-    private fun getSavedShareCode(): String? {
-        val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-        return prefs.getString("last_share_code", null)
-    }
-
-    private fun getSavedSharedAccountId(): Long {
-        val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-        return prefs.getLong("last_shared_account_id", -1L)
-    }
-
-    private fun saveShareCode(code: String?) {
-        val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-        prefs.edit().putString("last_share_code", code).apply()
     }
 
     fun deleteSharedLink(code: String) {
-        viewModelScope.launch {
-            repository.deleteSharedLink(code)
-        }
-    }
-
-    fun resetOnboarding() {
-        viewModelScope.launch {
-            authRepository.setOnboardingCompleted(false)
-            authRepository.setDashboardTutorialCompleted(false)
-            authRepository.setDetailTutorialCompleted(false)
-            _uiEvent.emit(UiEvent.NavigateToOnboarding)
-        }
-    }
-
-    fun setOnboardingCompleted() {
-        viewModelScope.launch {
-            authRepository.setOnboardingCompleted(true)
-        }
+        if (isLocalMode.value) return
+        viewModelScope.launch { repository.deleteSharedLink(code) }
     }
 
     fun onRestoreClick() {
@@ -454,6 +402,10 @@ class DashboardViewModel @Inject constructor(
     }
 
     fun onUpgradeToGoogle(context: Context) {
+        if (!infraRepository.isAccessAuthorized()) {
+            viewModelScope.launch { _uiEvent.emit(UiEvent.ShowError("Solicita y verifica el acceso a la nube antes de vincular Google")) }
+            return
+        }
         val activity = context.findActivity()
         if (activity == null) {
             viewModelScope.launch { _uiEvent.emit(UiEvent.ShowError("Error interno: No se encontró la actividad")) }
@@ -581,7 +533,7 @@ class DashboardViewModel @Inject constructor(
 
     fun checkForUpdates() {
         viewModelScope.launch {
-            val result = updateRepository.checkForUpdate()
+            val result = updateRepository.checkForUpdate().getOrNull()
             if (result is UpdateCheckResult.UpdateAvailable) {
                 _uiEvent.emit(UiEvent.UpdateAvailable(result))
             }
@@ -627,6 +579,5 @@ class DashboardViewModel @Inject constructor(
         data class UpdateAvailable(val update: UpdateCheckResult.UpdateAvailable) : UiEvent()
         data class DownloadingUpdate(val versionName: String) : UiEvent()
         object ShowInfraApprovalDialog : UiEvent()
-        object NavigateToOnboarding : UiEvent()
     }
 }

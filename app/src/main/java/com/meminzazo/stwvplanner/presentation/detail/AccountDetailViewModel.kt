@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.meminzazo.stwvplanner.domain.model.*
+import com.meminzazo.stwvplanner.domain.repository.AuthRepository
 import com.meminzazo.stwvplanner.domain.repository.SharedViewRepository
 import com.meminzazo.stwvplanner.domain.repository.VBucksRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -25,12 +26,16 @@ data class DependentRelation(
 class AccountDetailViewModel @Inject constructor(
     private val repository: VBucksRepository,
     private val sharedViewRepository: SharedViewRepository,
+    authRepository: AuthRepository,
     private val addAccountUseCase: com.meminzazo.stwvplanner.domain.usecase.AddAccountUseCase,
     @ApplicationContext private val context: Context,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
     private val accountId: Long = checkNotNull(savedStateHandle["accountId"])
+
+    val isLocalMode = authRepository.isUserLocal
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val account = flow {
         emit(repository.getAccountById(accountId))
@@ -282,18 +287,10 @@ class AccountDetailViewModel @Inject constructor(
                 return@launch
             }
 
-            // Borrar el código anterior si existe
-            val oldCode = getPrefs().getString("last_share_code", null)
-            if (oldCode != null) {
-                sharedViewRepository.deleteSharedView(oldCode)
-            }
-
             val result = sharedViewRepository.createSharedView(accountId)
             if (result.isSuccess) {
                 val newCode = result.getOrNull()!!
                 getPrefs().edit()
-                    .putString("last_share_code", newCode)
-                    .putLong("last_shared_account_id", accountId)
                     .putLong("last_gen_time", System.currentTimeMillis())
                     .apply()
                 _uiEvent.emit(UiEvent.ShareCodeGenerated(newCode))

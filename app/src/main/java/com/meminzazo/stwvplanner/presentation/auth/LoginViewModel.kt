@@ -12,6 +12,7 @@ import androidx.lifecycle.viewModelScope
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.meminzazo.stwvplanner.domain.repository.AuthRepository
+import com.meminzazo.stwvplanner.domain.repository.InfrastructureRequestRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,11 +23,13 @@ import javax.inject.Inject
 
 @HiltViewModel
 class LoginViewModel @Inject constructor(
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val infrastructureRepository: InfrastructureRequestRepository
 ) : ViewModel() {
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading = _isLoading.asStateFlow()
+    val cloudAccessGranted = MutableStateFlow(infrastructureRepository.isAccessAuthorized()).asStateFlow()
 
     private val _uiEvent = MutableSharedFlow<UiEvent>()
     val uiEvent = _uiEvent.asSharedFlow()
@@ -63,6 +66,10 @@ class LoginViewModel @Inject constructor(
     }
 
     fun onSignInWithGoogle(context: Context) {
+        if (!infrastructureRepository.isAccessAuthorized()) {
+            viewModelScope.launch { _uiEvent.emit(UiEvent.ShowError("Autoriza el acceso a la nube antes de iniciar sesión")) }
+            return
+        }
         if (!isActionAllowed()) return
         val activity = context.findActivity()
         if (activity == null) {

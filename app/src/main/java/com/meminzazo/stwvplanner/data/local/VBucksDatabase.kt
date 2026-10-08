@@ -10,7 +10,7 @@ import com.meminzazo.stwvplanner.data.local.entity.AccountEntity
 import com.meminzazo.stwvplanner.data.local.entity.SharedLinkEntity
 import com.meminzazo.stwvplanner.data.local.entity.TransactionEntity
 
-@Database(entities = [AccountEntity::class, TransactionEntity::class, SharedLinkEntity::class], version = 5, exportSchema = false)
+@Database(entities = [AccountEntity::class, TransactionEntity::class, SharedLinkEntity::class], version = 6, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class VBucksDatabase : RoomDatabase() {
     abstract fun accountDao(): AccountDao
